@@ -74,6 +74,11 @@ export function ReasoningPanel({ reasoning, loading }: ReasoningPanelProps) {
                 {reasoning.persona_check.notes}
               </p>
             </ReasoningBlock>
+            {reasoning.message_rationale && (
+              <ReasoningBlock title="Message rationale" borderColor="teal">
+                {reasoning.message_rationale}
+              </ReasoningBlock>
+            )}
             <p className="font-mono text-[11px] text-fg-tertiary">
               {reasoning.strategy_position}
             </p>

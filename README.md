@@ -59,4 +59,15 @@ React, TypeScript, Supabase (Postgres + Edge Functions), OpenAI API
 
 ## Live demo
 
-[Deployed URL]
+https://psviewagent.vercel.app
+
+## 2-minute evaluator path
+
+1. Sign in with Google → choose **Employer**
+2. Upload a company doc or chat through config → **Generate Agent**
+3. Review persona + strategy → **Start simulation**
+4. Use quick-reply chips or type as the candidate (e.g. "What's the compensation?")
+5. Watch the **Agent reasoning** panel update each turn — sentiment, strategy shift, persona check, message rationale
+6. **Publish** the role → sign in as **Candidate** → apply and talk to the same agent
+
+Nothing is sent externally. The simulation is a sandbox preview of outbound messages.

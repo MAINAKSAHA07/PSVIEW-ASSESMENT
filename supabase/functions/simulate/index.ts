@@ -79,6 +79,39 @@ async function checkStrategy(
   );
 }
 
+async function loadCandidateProfileText(
+  supabase: ReturnType<typeof createClient>,
+  sessionId: string,
+): Promise<string | undefined> {
+  const { data: app } = await supabase
+    .from('candidate_applications')
+    .select('candidate_id')
+    .eq('conversation_session_id', sessionId)
+    .maybeSingle();
+
+  if (!app?.candidate_id) return undefined;
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select(
+      'full_name, current_role, skills, experience_years, location, open_to_roles, resume_text',
+    )
+    .eq('id', app.candidate_id)
+    .maybeSingle();
+
+  if (!profile) return undefined;
+
+  return JSON.stringify({
+    name: profile.full_name,
+    current_role: profile.current_role,
+    skills: profile.skills ?? [],
+    experience_years: profile.experience_years,
+    location: profile.location,
+    open_to_roles: profile.open_to_roles ?? [],
+    resume_excerpt: profile.resume_text?.slice(0, 1500) ?? null,
+  });
+}
+
 async function generateResponse(
   persona: AgentPersona,
   profile: CompanyProfile,
@@ -86,6 +119,7 @@ async function generateResponse(
   history: string,
   candidateAnalysis: Record<string, unknown>,
   strategyCheck: Record<string, unknown>,
+  candidateProfile?: string,
 ) {
   const agentCount = history.split('\n').filter((l) => l.startsWith('agent:')).length;
   const stepIndex = Math.min(agentCount, strategy.steps.length - 1);
@@ -110,6 +144,7 @@ async function generateResponse(
       conversationHistory: history,
       candidateAnalysis: JSON.stringify(candidateAnalysis),
       strategyAdjustments,
+      candidateProfile,
     }),
     'Generate response JSON.',
     true,
@@ -125,6 +160,7 @@ async function generateResponse(
         conversationHistory: history,
         candidateAnalysis: JSON.stringify(candidateAnalysis),
         strategyAdjustments,
+        candidateProfile,
       }) + '\nReturn ONLY valid JSON.',
       'Generate response JSON.',
       true,
@@ -165,6 +201,7 @@ Deno.serve(async (req) => {
         .eq('session_id', session_id)
         .eq('phase', 'simulation');
 
+      const candidateProfile = await loadCandidateProfileText(supabase, session_id);
       const step = strategy.steps[0];
       const raw = await callOpenAI(
         MODELS.pipeline,
@@ -175,6 +212,7 @@ Deno.serve(async (req) => {
           conversationHistory: 'Reset. Opening message only.',
           candidateAnalysis: 'N/A',
           strategyAdjustments: 'None',
+          candidateProfile,
         }),
         'Generate opening message JSON.',
         true,
@@ -298,13 +336,14 @@ Deno.serve(async (req) => {
     const agentCount = (simMessages ?? []).filter((m) => m.role === 'agent').length;
     const position = `Message ${agentCount + 1} of ${strategy.sequence_length ?? 3}`;
 
-    const [candidateAnalysis, strategyCheck] = await Promise.all([
+    const [candidateAnalysis, strategyCheck, candidateProfile] = await Promise.all([
       analyzeCandidate(candidateMessage, history),
       checkStrategy(
         JSON.stringify({ message: candidateMessage }),
         strategy,
         position,
       ),
+      loadCandidateProfileText(supabase, session_id),
     ]);
 
     const generated = await generateResponse(
@@ -314,6 +353,7 @@ Deno.serve(async (req) => {
       history,
       candidateAnalysis,
       strategyCheck,
+      candidateProfile,
     );
 
     await supabase.from('messages').insert([

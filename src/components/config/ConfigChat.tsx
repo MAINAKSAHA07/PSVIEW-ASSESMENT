@@ -43,6 +43,12 @@ export function ConfigChat() {
   const lastSpokenIdRef = useRef<string | null>(null);
   const handleSendRef = useRef<(text: string) => Promise<void>>(async () => undefined);
 
+  useEffect(() => {
+    if (session?.company_profile) {
+      setReadyToSynthesize(isProfileReady(session.company_profile));
+    }
+  }, [session?.id, session?.company_profile]);
+
   const openListenWindow = useCallback(() => {
     if (inputMode !== 'voice' || !isSupported) return;
     startAutoListen({

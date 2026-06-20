@@ -84,10 +84,23 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const updateProfile = useCallback(
     async (updates: Partial<Profile>) => {
       if (!user) return;
-      const updated = await upsertProfile(user.id, updates);
+      const updated = await upsertProfile(user.id, {
+        role: profile?.role ?? updates.role ?? null,
+        full_name:
+          profile?.full_name ??
+          (user.user_metadata?.full_name as string) ??
+          (user.user_metadata?.name as string) ??
+          null,
+        email: profile?.email ?? user.email ?? null,
+        avatar_url:
+          profile?.avatar_url ??
+          (user.user_metadata?.avatar_url as string) ??
+          null,
+        ...updates,
+      });
       setProfile(updated);
     },
-    [user],
+    [user, profile],
   );
 
   const needsRoleSelection = Boolean(

@@ -130,7 +130,12 @@ export function messageGenerationPrompt(params: {
   conversationHistory: string;
   candidateAnalysis: string;
   strategyAdjustments: string;
+  candidateProfile?: string;
 }): string {
+  const candidateSection = params.candidateProfile
+    ? `\nCANDIDATE PROFILE (personalize outreach using only these facts):\n${params.candidateProfile}\n`
+    : '\nCANDIDATE PROFILE: Simulated preview — employer is testing manually. Stay generic on candidate-specific claims.\n';
+
   return `You are a recruiting agent for the company described below.
 
 YOUR PERSONALITY AND STYLE:
@@ -138,7 +143,7 @@ ${params.agentPersona}
 
 COMPANY FACTS (you may ONLY reference these):
 ${params.companyProfile}
-
+${candidateSection}
 CURRENT STRATEGY STEP:
 ${params.currentStrategyStep}
 

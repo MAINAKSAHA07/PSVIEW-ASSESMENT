@@ -3,10 +3,11 @@ import { startCandidateConversation } from '../../lib/api';
 import { useAuthContext } from '../../context/AuthContext';
 import type { CandidateApplication } from '../../lib/types';
 import { AgentConversation } from './AgentConversation';
+import { CandidateProfile } from './CandidateProfile';
 import { MyApplications } from './MyApplications';
 import { RoleBrowser } from './RoleBrowser';
 
-type Tab = 'browse' | 'applications';
+type Tab = 'browse' | 'applications' | 'profile';
 
 export function CandidateDashboard() {
   const { user } = useAuthContext();
@@ -63,14 +64,27 @@ export function CandidateDashboard() {
         >
           My applications
         </button>
+        <button
+          type="button"
+          onClick={() => setTab('profile')}
+          className={`rounded-lg px-4 py-2 text-sm ${
+            tab === 'profile'
+              ? 'bg-coral text-white'
+              : 'border border-line text-fg-secondary'
+          }`}
+        >
+          My profile
+        </button>
       </div>
 
       {error && <p className="mb-4 text-sm text-err">{error}</p>}
 
       {tab === 'browse' ? (
         <RoleBrowser onTalk={handleTalk} startingId={startingId} />
-      ) : (
+      ) : tab === 'applications' ? (
         <MyApplications />
+      ) : (
+        <CandidateProfile />
       )}
     </div>
   );

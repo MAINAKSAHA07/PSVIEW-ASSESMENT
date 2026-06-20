@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchEmployerApplications, fetchUserSessions } from '../../lib/api';
+import { fetchEmployerApplications, fetchEmployerAgentSessions } from '../../lib/api';
 import { useAuthContext } from '../../context/AuthContext';
 import type { CandidateApplication, Profile, Session } from '../../lib/types';
 import { AgentCard } from './AgentCard';
@@ -19,7 +19,7 @@ export function EmployerDashboard() {
     if (!user) return;
     setLoading(true);
     Promise.all([
-      fetchUserSessions(user.id),
+      fetchEmployerAgentSessions(user.id),
       fetchEmployerApplications(user.id),
     ])
       .then(([sess, apps]) => {
@@ -45,7 +45,7 @@ export function EmployerDashboard() {
       <div className="mb-6 flex items-center justify-between">
         <h1 className="font-serif text-2xl text-fg-primary">Your agents</h1>
         <Link
-          to="/app"
+          to="/app?new=1"
           className="rounded-lg bg-coral px-4 py-2 text-sm font-medium text-white hover:bg-coral-dark"
         >
           Configure new agent

@@ -133,6 +133,9 @@ export function SimulationView() {
 
   return (
     <div className="flex h-[calc(100vh-57px)] flex-col">
+      <div className="shrink-0 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-xs text-amber-800 dark:text-amber-300">
+        Preview mode — no emails or LinkedIn messages are sent. Type candidate replies below to test how your agent responds.
+      </div>
       <TwoColumnLayout
         left={
           <div className="flex h-full min-h-0 flex-col overflow-hidden">

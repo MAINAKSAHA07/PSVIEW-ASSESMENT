@@ -1,46 +1,92 @@
 import { useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useSession } from '../../hooks/useSession';
-import { fetchMessages, insertMessage } from '../../lib/api';
+import {
+  fetchEmployerAgentSessions,
+  fetchMessages,
+  insertMessage,
+} from '../../lib/api';
 import { getOpeningMessage } from '../../lib/constants';
 import { useSessionContext } from '../../context/SessionContext';
-import type { Session } from '../../lib/types';
 
 export function MainLoader() {
   const { firstName, user } = useAuth();
-  const { startNewSession } = useSession();
+  const { loadSession, startNewSession } = useSession();
   const { session, setMessages } = useSessionContext();
-  const creatingRef = useRef(false);
+  const [searchParams] = useSearchParams();
+  const bootstrappedRef = useRef<string | null>(null);
   const hydratedRef = useRef<string | null>(null);
+
+  const sessionParam = searchParams.get('session');
+  const isNew = searchParams.get('new') === '1';
+  const bootKey = `${user?.id ?? ''}:${sessionParam ?? ''}:${isNew}`;
 
   useEffect(() => {
     if (!user) return;
+    if (bootstrappedRef.current === bootKey && session) return;
 
     let cancelled = false;
 
-    async function init() {
-      let activeSession = session as Session | null;
+    async function bootstrap() {
+      if (!user) return;
 
-      if (!activeSession) {
-        if (creatingRef.current) return;
-        creatingRef.current = true;
-        try {
-          activeSession = (await startNewSession()) as Session | null;
-        } finally {
-          creatingRef.current = false;
+      if (isNew) {
+        await startNewSession();
+      } else if (sessionParam) {
+        if (session?.id !== sessionParam) {
+          await loadSession(sessionParam);
+        }
+      } else if (!session) {
+        const sessions = await fetchEmployerAgentSessions(user.id);
+        if (cancelled) return;
+        if (sessions.length > 0) {
+          await loadSession(sessions[0].id);
+        } else {
+          await startNewSession();
         }
       }
 
-      if (cancelled || !activeSession) return;
-      if (hydratedRef.current === activeSession.id) return;
+      if (!cancelled) bootstrappedRef.current = bootKey;
+    }
 
-      const dbMessages = await fetchMessages(activeSession.id, 'config');
+    void bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    user,
+    session,
+    sessionParam,
+    isNew,
+    bootKey,
+    loadSession,
+    startNewSession,
+  ]);
+
+  useEffect(() => {
+    if (!user || !session) return;
+    if (hydratedRef.current === session.id) return;
+
+    const activeSession = session;
+    let cancelled = false;
+
+    async function hydrate() {
+      if (activeSession.status !== 'configuring') {
+        const allMessages = await fetchMessages(activeSession.id);
+        if (cancelled) return;
+        hydratedRef.current = activeSession.id;
+        setMessages(allMessages);
+        return;
+      }
+
+      const configMessages = await fetchMessages(activeSession.id, 'config');
       if (cancelled) return;
-
       hydratedRef.current = activeSession.id;
 
-      if (dbMessages.length > 0) {
-        setMessages(dbMessages);
+      if (configMessages.length > 0) {
+        setMessages(configMessages);
         return;
       }
 
@@ -69,12 +115,18 @@ export function MainLoader() {
       }
     }
 
-    init();
+    void hydrate();
 
     return () => {
       cancelled = true;
     };
-  }, [user?.id, session?.id, firstName, startNewSession, setMessages]);
+  }, [user, session, firstName, setMessages]);
+
+  useEffect(() => {
+    if (session?.id && hydratedRef.current && hydratedRef.current !== session.id) {
+      hydratedRef.current = null;
+    }
+  }, [session?.id]);
 
   return null;
 }

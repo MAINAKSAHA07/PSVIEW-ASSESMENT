@@ -429,14 +429,21 @@ export async function fetchSession(sessionId: string) {
 }
 
 export async function fetchUserSessions(userId: string) {
+  return fetchEmployerAgentSessions(userId);
+}
+
+export async function fetchEmployerAgentSessions(
+  userId: string,
+): Promise<Session[]> {
   const { data, error } = await supabase
     .from('sessions')
     .select('*')
     .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+    .is('parent_session_id', null)
+    .order('updated_at', { ascending: false });
 
   if (error) throw new Error(error.message);
-  return data ?? [];
+  return (data ?? []) as Session[];
 }
 
 export async function fetchMessages(sessionId: string, phase?: string) {

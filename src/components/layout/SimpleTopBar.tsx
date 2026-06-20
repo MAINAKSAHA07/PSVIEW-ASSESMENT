@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { APP_NAME } from '../../lib/constants';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../context/ThemeContext';
@@ -11,8 +12,10 @@ export function SimpleTopBar() {
   return (
     <header className="flex items-center justify-between border-b border-line bg-app px-4 py-3">
       <div className="flex items-center gap-3">
-        <AppLogo />
-        <span className="font-serif text-lg text-fg-primary">{APP_NAME}</span>
+        <Link to="/app" className="flex items-center gap-3">
+          <AppLogo />
+          <span className="font-serif text-lg text-fg-primary">{APP_NAME}</span>
+        </Link>
       </div>
       <div className="flex items-center gap-3">
         <button
