@@ -519,6 +519,12 @@ export async function deleteSimulationMessages(sessionId: string) {
   if (error) throw new Error(error.message);
 }
 
+export async function deleteEmployerSession(sessionId: string): Promise<void> {
+  const { error } = await supabase.from('sessions').delete().eq('id', sessionId);
+
+  if (error) throw new Error(error.message);
+}
+
 export async function fetchAllProfiles(): Promise<Profile[]> {
   const { data, error } = await supabase
     .from('profiles')

@@ -1,6 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchEmployerApplications, fetchEmployerAgentSessions } from '../../lib/api';
+import {
+  deleteEmployerSession,
+  fetchEmployerApplications,
+  fetchEmployerAgentSessions,
+} from '../../lib/api';
 import { useAuthContext } from '../../context/AuthContext';
 import type { CandidateApplication, Profile, Session } from '../../lib/types';
 import { AgentCard } from './AgentCard';
@@ -14,11 +18,13 @@ export function EmployerDashboard() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!user) return;
+  const loadData = useCallback(() => {
+    if (!user) return Promise.resolve();
     setLoading(true);
-    Promise.all([
+    setError(null);
+    return Promise.all([
       fetchEmployerAgentSessions(user.id),
       fetchEmployerApplications(user.id),
     ])
@@ -32,6 +38,23 @@ export function EmployerDashboard() {
       .finally(() => setLoading(false));
   }, [user]);
 
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  const handleDelete = async (sessionId: string) => {
+    setDeletingId(sessionId);
+    setError(null);
+    try {
+      await deleteEmployerSession(sessionId);
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete agent');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center p-8">
@@ -43,30 +66,35 @@ export function EmployerDashboard() {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto max-w-4xl p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="font-serif text-2xl text-fg-primary">Your agents</h1>
-        <Link
-          to="/app?new=1"
-          className="rounded-lg bg-coral px-4 py-2 text-sm font-medium text-white hover:bg-coral-dark"
-        >
-          Configure new agent
-        </Link>
-      </div>
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="font-serif text-2xl text-fg-primary">Your agents</h1>
+          <Link
+            to="/app?new=1"
+            className="rounded-lg bg-coral px-4 py-2 text-sm font-medium text-white hover:bg-coral-dark"
+          >
+            Configure new agent
+          </Link>
+        </div>
 
-      {error && <p className="mb-4 text-sm text-err">{error}</p>}
+        {error && <p className="mb-4 text-sm text-err">{error}</p>}
 
-      <div className="mb-8 space-y-3">
-        {sessions.length === 0 ? (
-          <p className="text-sm text-fg-secondary">No agents configured yet.</p>
-        ) : (
-          sessions.map((session) => (
-            <AgentCard key={session.id} session={session} />
-          ))
-        )}
-      </div>
+        <div className="mb-8 space-y-3">
+          {sessions.length === 0 ? (
+            <p className="text-sm text-fg-secondary">No agents configured yet.</p>
+          ) : (
+            sessions.map((session) => (
+              <AgentCard
+                key={session.id}
+                session={session}
+                onDelete={handleDelete}
+                deleting={deletingId === session.id}
+              />
+            ))
+          )}
+        </div>
 
-      <h2 className="mb-4 font-serif text-xl text-fg-primary">Applications</h2>
-      <ApplicationsList applications={applications} sessions={sessions} />
+        <h2 className="mb-4 font-serif text-xl text-fg-primary">Applications</h2>
+        <ApplicationsList applications={applications} sessions={sessions} />
       </div>
     </div>
   );

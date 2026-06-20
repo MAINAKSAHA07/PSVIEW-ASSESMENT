@@ -1,9 +1,12 @@
 import { Link } from 'react-router-dom';
 import type { Session, SessionStatus } from '../../lib/types';
 import { isProfileReady } from '../../lib/constants';
+import { isEmptyAgentSession } from '../../lib/sessionUtils';
 
 interface AgentCardProps {
   session: Session;
+  onDelete?: (sessionId: string) => void;
+  deleting?: boolean;
 }
 
 function formatLabel(value: string | undefined, fallback: string): string {
@@ -51,7 +54,7 @@ function continueLabel(session: Session): string {
   return 'Continue setup';
 }
 
-export function AgentCard({ session }: AgentCardProps) {
+export function AgentCard({ session, onDelete, deleting }: AgentCardProps) {
   const profile = session.company_profile ?? {};
   const persona = session.agent_persona ?? {};
   const published = session.is_published ?? false;
@@ -60,6 +63,7 @@ export function AgentCard({ session }: AgentCardProps) {
   const hasProfileData = Boolean(
     profile.company_name || profile.role || profile.pitch,
   );
+  const canDelete = isEmptyAgentSession(session);
 
   return (
     <div className="rounded-lg border border-line bg-app-card p-4">
@@ -98,6 +102,16 @@ export function AgentCard({ session }: AgentCardProps) {
         >
           View applications
         </Link>
+        {canDelete && onDelete && (
+          <button
+            type="button"
+            disabled={deleting}
+            onClick={() => onDelete(session.id)}
+            className="rounded-md border border-line px-3 py-1.5 text-xs text-fg-secondary hover:border-err hover:text-err disabled:opacity-50"
+          >
+            {deleting ? 'Deleting...' : 'Delete'}
+          </button>
+        )}
       </div>
     </div>
   );

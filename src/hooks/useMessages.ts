@@ -9,13 +9,7 @@ function mergePhaseMessages(
   incoming: Message[],
 ): Message[] {
   const otherPhases = current.filter((m) => m.phase !== phase);
-  const incomingKeys = new Set(
-    incoming.map((m) => `${m.role}::${m.content}`),
-  );
-  const localOnly = current
-    .filter((m) => m.phase === phase)
-    .filter((m) => !incomingKeys.has(`${m.role}::${m.content}`));
-  const merged = [...otherPhases, ...localOnly, ...incoming];
+  const merged = [...otherPhases, ...incoming];
   merged.sort(
     (a, b) =>
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
@@ -29,12 +23,13 @@ export function useMessages() {
   const reloadMessages = useCallback(
     async (phase?: MessagePhase) => {
       if (!session) return;
-      const data = await fetchMessages(session.id, phase);
       if (phase) {
+        const data = await fetchMessages(session.id, phase);
         setMessages(mergePhaseMessages(messages, phase, data));
-      } else {
-        setMessages(data);
+        return;
       }
+      const data = await fetchMessages(session.id);
+      setMessages(data);
     },
     [session, messages, setMessages],
   );

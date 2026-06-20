@@ -7,7 +7,7 @@ interface ConversationThreadProps {
 
 export function ConversationThread({ messages }: ConversationThreadProps) {
   return (
-    <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 scrollbar-thin">
+    <div className="space-y-4 px-4 py-4">
       {messages.map((msg) =>
         msg.role === 'agent' ? (
           <div key={msg.id} className="flex gap-3">

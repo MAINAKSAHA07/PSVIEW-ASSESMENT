@@ -34,13 +34,13 @@ interface ReasoningPanelProps {
 
 export function ReasoningPanel({ reasoning, loading }: ReasoningPanelProps) {
   return (
-    <div className="flex h-full flex-col bg-app-reasoning">
-      <div className="border-b border-line px-4 py-4">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-app-reasoning">
+      <div className="shrink-0 border-b border-line px-4 py-4">
         <h2 className="flex items-center gap-2 font-serif text-lg text-fg-primary">
           <span className="text-teal">◉</span> Agent reasoning
         </h2>
       </div>
-      <div className="flex-1 space-y-3 overflow-y-auto p-4 scrollbar-thin">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 scrollbar-thin">
         {loading && (
           <div className="flex animate-pulse items-center gap-2 text-sm text-teal">
             Analyzing...
