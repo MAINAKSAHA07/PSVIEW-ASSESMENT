@@ -12,6 +12,26 @@ export type ApplicationStatus =
   | 'declined'
   | 'withdrawn';
 
+export type MatchTier = 'strong' | 'good' | 'partial' | 'weak';
+
+export interface RoleMatch {
+  tier: MatchTier;
+  score: number;
+  matched_skills: string[];
+  missing_skills: string[];
+  highlights: string[];
+}
+
+export interface ParsedResume {
+  full_name: string | null;
+  current_role: string | null;
+  linkedin_url: string | null;
+  skills: string[];
+  experience_years: number | null;
+  location: string | null;
+  open_to_roles: string[];
+}
+
 export interface CandidateSummary {
   interest_level: 'high' | 'medium' | 'low' | 'declined';
   interest_label: string;
@@ -53,6 +73,7 @@ export interface CandidateApplication {
   candidate_summary: CandidateSummary;
   conversation_session_id: string | null;
   notes: string | null;
+  match_score: RoleMatch | null;
   candidate?: Profile;
 }
 

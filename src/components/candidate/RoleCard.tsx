@@ -1,48 +1,70 @@
-import type { Profile, Session } from '../../lib/types';
+import type { Profile, RoleMatch, Session } from '../../lib/types';
+import { MatchBadge } from '../shared/MatchBadge';
 
 interface RoleCardProps {
   session: Session;
   profile: Profile | null;
+  match: RoleMatch;
   onTalk: (sessionId: string) => void;
   loading?: boolean;
 }
 
-function matchSkills(candidateSkills: string[], roleText: string): string[] {
-  const haystack = roleText.toLowerCase();
-  return candidateSkills.filter((skill) =>
-    haystack.includes(skill.toLowerCase()),
-  );
-}
-
-export function RoleCard({ session, profile, onTalk, loading }: RoleCardProps) {
+export function RoleCard({
+  session,
+  profile,
+  match,
+  onTalk,
+  loading,
+}: RoleCardProps) {
   const company = session.company_profile ?? {};
-  const roleText = [
-    company.role,
-    company.ideal_candidate,
-    company.pitch,
-    company.what_they_do,
-  ]
-    .filter(Boolean)
-    .join(' ');
-  const matched = matchSkills(profile?.skills ?? [], roleText);
 
   return (
     <div className="rounded-lg border border-line bg-app-card p-5">
-      <h3 className="font-medium text-fg-primary">{company.role ?? 'Open role'}</h3>
-      <p className="mt-1 text-sm text-fg-secondary">
-        {company.company_name ?? 'Company'} · {company.industry ?? 'Industry'} ·{' '}
-        {company.size ?? 'Team size'}
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="font-medium text-fg-primary">
+            {company.role ?? 'Open role'}
+          </h3>
+          <p className="mt-1 text-sm text-fg-secondary">
+            {company.company_name ?? 'Company'} · {company.industry ?? 'Industry'}{' '}
+            · {company.size ?? 'Team size'}
+          </p>
+        </div>
+        <MatchBadge match={match} />
+      </div>
+
       {company.pitch && (
         <p className="mt-3 text-sm italic text-fg-primary">
           &ldquo;{company.pitch}&rdquo;
         </p>
       )}
-      {matched.length > 0 && (
+
+      {match.matched_skills.length > 0 && (
         <p className="mt-3 text-xs text-teal">
-          Skills match: {matched.map((s) => `${s} ✓`).join('  ')}
+          Skills match: {match.matched_skills.map((s) => `${s} ✓`).join('  ')}
         </p>
       )}
+
+      {match.missing_skills.length > 0 && (
+        <p className="mt-2 text-xs text-fg-tertiary">
+          Gaps vs role: {match.missing_skills.join(', ')}
+        </p>
+      )}
+
+      {match.highlights.length > 0 && (
+        <ul className="mt-3 space-y-1 text-xs text-fg-secondary">
+          {match.highlights.map((item) => (
+            <li key={item}>• {item}</li>
+          ))}
+        </ul>
+      )}
+
+      {!profile?.skills?.length && (
+        <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
+          Add skills to your profile for better match scoring.
+        </p>
+      )}
+
       <div className="mt-4 flex gap-2">
         <button
           type="button"

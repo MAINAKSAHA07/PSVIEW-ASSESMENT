@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   fetchAdminStats,
   fetchAllApplications,
@@ -9,51 +9,22 @@ import {
 import { supabase } from '../../lib/supabase';
 import type { CandidateApplication, Profile, Session } from '../../lib/types';
 import { ActivityFeed, type ActivityFeedProps } from './ActivityFeed';
-import { PlatformStats } from './PlatformStats';
+import { AgentManagement } from './AgentManagement';
+import { CandidateManagement } from './CandidateManagement';
+import { CompanyManagement } from './CompanyManagement';
+import { ConversationList } from './ConversationList';
+import { InterestOverview } from './InterestOverview';
+import { PlatformStats, type AdminStatSection } from './PlatformStats';
 import { ApplicationManagement, UserManagement } from './UserManagement';
 
-function CompanyList({ sessions }: { sessions: Session[] }) {
-  const byCompany = sessions.reduce<Record<string, Session[]>>((acc, s) => {
-    const name = s.company_profile?.company_name ?? 'Unknown';
-    acc[name] = acc[name] ?? [];
-    acc[name].push(s);
-    return acc;
-  }, {});
-
-  return (
-    <div className="rounded-lg border border-line bg-app-card p-4">
-      <h3 className="mb-3 text-sm font-medium text-fg-primary">Companies</h3>
-      <ul className="space-y-2">
-        {Object.entries(byCompany).map(([name, list]) => (
-          <li key={name} className="flex justify-between text-sm text-fg-secondary">
-            <span>{name}</span>
-            <span>{list.length} role{list.length === 1 ? '' : 's'}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function AgentList({ sessions }: { sessions: Session[] }) {
-  const agents = sessions.filter((s) => s.agent_persona?.name);
-
-  return (
-    <div className="rounded-lg border border-line bg-app-card p-4">
-      <h3 className="mb-3 text-sm font-medium text-fg-primary">Agents</h3>
-      <ul className="space-y-2">
-        {agents.map((s) => (
-          <li key={s.id} className="flex justify-between text-sm text-fg-secondary">
-            <span>
-              {s.agent_persona.name} ({s.company_profile?.company_name ?? 'Company'})
-            </span>
-            <span>{s.is_published ? 'Active' : 'Draft'}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
+const SECTION_ORDER: AdminStatSection[] = [
+  'companies',
+  'agents',
+  'candidates',
+  'applications',
+  'conversations',
+  'interest',
+];
 
 export function AdminDashboard() {
   const [stats, setStats] = useState<Awaited<ReturnType<typeof fetchAdminStats>> | null>(
@@ -70,6 +41,18 @@ export function AdminDashboard() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<AdminStatSection | null>(
+    null,
+  );
+
+  const sectionRefs = useRef<Record<AdminStatSection, HTMLDivElement | null>>({
+    companies: null,
+    agents: null,
+    candidates: null,
+    applications: null,
+    conversations: null,
+    interest: null,
+  });
 
   const loadData = useCallback(() => {
     setLoading(true);
@@ -78,7 +61,7 @@ export function AdminDashboard() {
       fetchAdminStats(),
       fetchRecentActivity(),
       fetchPublishedSessions(),
-      supabase.from('sessions').select('*').order('updated_at', { ascending: false }).limit(20),
+      supabase.from('sessions').select('*').order('updated_at', { ascending: false }).limit(50),
       fetchAllProfiles(),
       fetchAllApplications(),
     ])
@@ -100,6 +83,16 @@ export function AdminDashboard() {
     void loadData();
   }, [loadData]);
 
+  const scrollToSection = (section: AdminStatSection) => {
+    setActiveSection(section);
+    requestAnimationFrame(() => {
+      sectionRefs.current[section]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center p-8">
@@ -108,25 +101,72 @@ export function AdminDashboard() {
     );
   }
 
+  const agentSessions = publishedSessions.length ? publishedSessions : allSessions;
+
   return (
     <div className="mx-auto max-w-5xl flex-1 overflow-y-auto p-6">
       <h1 className="mb-6 font-serif text-2xl text-fg-primary">AgentForge Admin</h1>
       {error && <p className="mb-4 text-sm text-err">{error}</p>}
+
       {stats && (
         <>
           <h2 className="mb-3 text-sm font-medium uppercase text-fg-secondary">
             Platform stats
           </h2>
-          <PlatformStats stats={stats} />
+          <PlatformStats
+            stats={stats}
+            activeSection={activeSection}
+            onSelectSection={scrollToSection}
+          />
         </>
       )}
 
+      <div className="mt-8 space-y-6">
+        {SECTION_ORDER.map((section) => (
+          <div
+            key={section}
+            ref={(el) => {
+              sectionRefs.current[section] = el;
+            }}
+            className={`scroll-mt-6 rounded-xl transition ${
+              activeSection === section ? 'ring-2 ring-teal/20' : ''
+            }`}
+          >
+            {section === 'companies' && (
+              <CompanyManagement
+                profiles={profiles}
+                sessions={allSessions}
+                onRefresh={() => void loadData()}
+              />
+            )}
+            {section === 'agents' && <AgentManagement sessions={agentSessions} />}
+            {section === 'candidates' && (
+              <CandidateManagement
+                profiles={profiles}
+                onRefresh={() => void loadData()}
+              />
+            )}
+            {section === 'applications' && (
+              <ApplicationManagement
+                applications={applications}
+                onRefresh={() => void loadData()}
+              />
+            )}
+            {section === 'conversations' && (
+              <ConversationList sessions={allSessions} />
+            )}
+            {section === 'interest' && stats && (
+              <InterestOverview
+                applications={applications}
+                avgInterest={stats.avgInterest}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+
       <div className="mt-8 space-y-4">
         <UserManagement profiles={profiles} onRefresh={() => void loadData()} />
-        <ApplicationManagement
-          applications={applications}
-          onRefresh={() => void loadData()}
-        />
       </div>
 
       {activity && (
@@ -137,10 +177,6 @@ export function AdminDashboard() {
           />
         </div>
       )}
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
-        <CompanyList sessions={allSessions} />
-        <AgentList sessions={publishedSessions.length ? publishedSessions : allSessions} />
-      </div>
     </div>
   );
 }

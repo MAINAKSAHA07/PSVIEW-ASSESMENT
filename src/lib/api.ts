@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { sanitizeObject } from './sanitize';
+import { computeRoleMatch, parseRoleMatch } from './matching';
 import type {
   ApplicationStatus,
   CandidateApplication,
@@ -7,6 +8,7 @@ import type {
   CompanyProfile,
   ConfigureResponse,
   Message,
+  ParsedResume,
   Profile,
   Session,
   SimulateResponse,
@@ -99,6 +101,23 @@ export async function simulateSummarize(
     session_id: sessionId,
     action: 'summarize',
   });
+}
+
+export async function parseResume(fileText: string): Promise<{
+  profile: Profile;
+  parsed: ParsedResume;
+}> {
+  return invokeFunction<{ profile: Profile; parsed: ParsedResume }>(
+    'parse-resume',
+    { file_text: fileText },
+  );
+}
+
+function mapApplication(row: Record<string, unknown>): CandidateApplication {
+  return {
+    ...(row as unknown as CandidateApplication),
+    match_score: parseRoleMatch(row.match_score),
+  };
 }
 
 export async function fetchProfile(userId: string): Promise<Profile | null> {
@@ -204,7 +223,9 @@ export async function fetchEmployerApplications(
     .order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message);
-  const apps = (data ?? []) as CandidateApplication[];
+  const apps = (data ?? []).map((row) =>
+    mapApplication(row as Record<string, unknown>),
+  );
   if (apps.length === 0) return [];
 
   const candidateIds = [...new Set(apps.map((a) => a.candidate_id))];
@@ -233,7 +254,9 @@ export async function fetchCandidateApplications(
     .order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message);
-  return (data ?? []) as (CandidateApplication & { session?: Session })[];
+  return (data ?? []).map((row) =>
+    mapApplication(row as Record<string, unknown>),
+  );
 }
 
 export async function startCandidateConversation(
@@ -248,6 +271,22 @@ export async function startCandidateConversation(
     .single();
 
   if (pubErr || !published) throw new Error('Published role not found');
+
+  const { data: candidateProfile, error: profileErr } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', candidateId)
+    .single();
+
+  if (profileErr) throw new Error(profileErr.message);
+
+  const profile = {
+    ...candidateProfile,
+    skills: (candidateProfile.skills as string[]) ?? [],
+    open_to_roles: (candidateProfile.open_to_roles as string[]) ?? [],
+  } as Profile;
+
+  const matchScore = computeRoleMatch(profile, published as Session);
 
   const { data: convSession, error: convErr } = await supabase
     .from('sessions')
@@ -272,6 +311,7 @@ export async function startCandidateConversation(
       session_id: publishedSessionId,
       conversation_session_id: convSession.id,
       status: 'agent_engaged',
+      match_score: matchScore,
     })
     .select()
     .single();
@@ -288,7 +328,7 @@ export async function startCandidateConversation(
     })
     .eq('id', publishedSessionId);
 
-  return application as CandidateApplication;
+  return mapApplication(application as Record<string, unknown>);
 }
 
 export async function fetchAdminStats() {
@@ -517,7 +557,9 @@ export async function fetchAllApplications(): Promise<
     .order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message);
-  const apps = (data ?? []) as CandidateApplication[];
+  const apps = (data ?? []).map((row) =>
+    mapApplication(row as Record<string, unknown>),
+  );
   if (apps.length === 0) return [];
 
   const candidateIds = [...new Set(apps.map((a) => a.candidate_id))];
@@ -568,4 +610,46 @@ export async function adminUpdateUserProfile(
     skills: (data.skills as string[]) ?? [],
     open_to_roles: (data.open_to_roles as string[]) ?? [],
   } as Profile;
+}
+
+export async function adminCreateEmployer(input: {
+  email: string;
+  full_name: string;
+  company_name: string;
+}): Promise<Profile> {
+  const { data, error } = await supabase.functions.invoke('admin-users', {
+    body: { action: 'create_employer', ...input },
+  });
+
+  if (error) throw new Error(error.message);
+  if (data?.error) throw new Error(data.error as string);
+
+  const profile = data.profile as Profile;
+  return {
+    ...profile,
+    skills: (profile.skills as string[]) ?? [],
+    open_to_roles: (profile.open_to_roles as string[]) ?? [],
+  };
+}
+
+export async function adminCreateCandidate(input: {
+  email: string;
+  full_name: string;
+  current_role?: string;
+  location?: string;
+  skills?: string[] | string;
+}): Promise<Profile> {
+  const { data, error } = await supabase.functions.invoke('admin-users', {
+    body: { action: 'create_candidate', ...input },
+  });
+
+  if (error) throw new Error(error.message);
+  if (data?.error) throw new Error(data.error as string);
+
+  const profile = data.profile as Profile;
+  return {
+    ...profile,
+    skills: (profile.skills as string[]) ?? [],
+    open_to_roles: (profile.open_to_roles as string[]) ?? [],
+  };
 }

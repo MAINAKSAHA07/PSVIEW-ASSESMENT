@@ -300,3 +300,26 @@ Base every assessment on what the candidate actually said. Do not infer personal
 
 ${GLOBAL_RULES}`;
 }
+
+export function resumeExtractionPrompt(): string {
+  return `Extract candidate profile fields from this resume.
+
+Return ONLY valid JSON with these fields:
+{
+  "full_name": "string or null",
+  "current_role": "most recent job title and company, e.g. Senior Engineer at Stripe",
+  "linkedin_url": "LinkedIn URL if present, else null",
+  "skills": ["array of technical and professional skills, 5-15 items"],
+  "experience_years": number (total years of professional experience, estimate if needed),
+  "location": "city/region if stated, else null",
+  "open_to_roles": ["job titles or role types the candidate seems suited for, 2-5 items"]
+}
+
+Rules:
+- Only include fields explicitly stated or very strongly implied
+- skills should be concise labels (React, TypeScript, not full sentences)
+- experience_years should be a reasonable integer estimate
+- open_to_roles should reflect seniority and domain from the resume
+
+${GLOBAL_RULES}`;
+}
