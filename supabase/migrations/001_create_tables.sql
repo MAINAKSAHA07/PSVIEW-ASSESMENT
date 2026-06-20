@@ -58,11 +58,19 @@ CREATE INDEX idx_integration_logs_integration ON integration_logs(integration_id
 
 ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "users_own_sessions" ON sessions
-  FOR ALL USING (auth.uid() = user_id);
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "users_own_messages" ON messages
-  FOR ALL USING (
+  FOR ALL
+  USING (
+    session_id IN (
+      SELECT id FROM sessions WHERE user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
     session_id IN (
       SELECT id FROM sessions WHERE user_id = auth.uid()
     )
@@ -70,11 +78,19 @@ CREATE POLICY "users_own_messages" ON messages
 
 ALTER TABLE integrations ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "users_own_integrations" ON integrations
-  FOR ALL USING (auth.uid() = user_id);
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 ALTER TABLE integration_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "users_own_logs" ON integration_logs
-  FOR ALL USING (
+  FOR ALL
+  USING (
+    integration_id IN (
+      SELECT id FROM integrations WHERE user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
     integration_id IN (
       SELECT id FROM integrations WHERE user_id = auth.uid()
     )

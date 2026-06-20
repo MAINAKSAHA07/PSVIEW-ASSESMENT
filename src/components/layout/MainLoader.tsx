@@ -1,37 +1,72 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useSession } from '../../hooks/useSession';
-import { fetchMessages } from '../../lib/api';
+import { fetchMessages, insertMessage } from '../../lib/api';
+import { getOpeningMessage } from '../../lib/constants';
 import { useSessionContext } from '../../context/SessionContext';
-import type { Message, Session } from '../../lib/types';
+import type { Session } from '../../lib/types';
 
 export function MainLoader() {
-  const { firstName } = useAuth();
+  const { firstName, user } = useAuth();
   const { startNewSession } = useSession();
-  const { session, setSession, setMessages, messages } = useSessionContext();
+  const { session, setMessages } = useSessionContext();
+  const creatingRef = useRef(false);
+  const hydratedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (session) return;
+    if (!user) return;
 
     let cancelled = false;
 
     async function init() {
-      const newSession = await startNewSession();
-      if (cancelled || !newSession) return;
+      let activeSession = session as Session | null;
 
-      const openingContent = `Hey ${firstName}, I'm going to be your recruiting agent. Two ways to start: Drop a file with your company info, or just tell me: what does your company do?`;
+      if (!activeSession) {
+        if (creatingRef.current) return;
+        creatingRef.current = true;
+        try {
+          activeSession = (await startNewSession()) as Session | null;
+        } finally {
+          creatingRef.current = false;
+        }
+      }
 
-      const openingMessage: Message = {
-        id: crypto.randomUUID(),
-        session_id: (newSession as Session).id,
-        created_at: new Date().toISOString(),
-        phase: 'config',
-        role: 'agent',
-        content: openingContent,
-        reasoning: null,
-      };
+      if (cancelled || !activeSession) return;
+      if (hydratedRef.current === activeSession.id) return;
 
-      setMessages([openingMessage]);
+      const dbMessages = await fetchMessages(activeSession.id, 'config');
+      if (cancelled) return;
+
+      hydratedRef.current = activeSession.id;
+
+      if (dbMessages.length > 0) {
+        setMessages(dbMessages);
+        return;
+      }
+
+      try {
+        const saved = await insertMessage({
+          session_id: activeSession.id,
+          phase: 'config',
+          role: 'agent',
+          content: getOpeningMessage(firstName),
+        });
+        if (!cancelled) setMessages([saved]);
+      } catch {
+        if (!cancelled) {
+          setMessages([
+            {
+              id: crypto.randomUUID(),
+              session_id: activeSession.id,
+              created_at: new Date().toISOString(),
+              phase: 'config',
+              role: 'agent',
+              content: getOpeningMessage(firstName),
+              reasoning: null,
+            },
+          ]);
+        }
+      }
     }
 
     init();
@@ -39,20 +74,7 @@ export function MainLoader() {
     return () => {
       cancelled = true;
     };
-  }, [session, startNewSession, firstName, setMessages]);
-
-  useEffect(() => {
-    if (!session || messages.length > 0) return;
-
-    fetchMessages(session.id).then((data) => {
-      if (data.length > 0) {
-        setMessages(data);
-        setSession({ ...session, status: session.status });
-      }
-    }).catch(() => {
-      /* opening message handled above */
-    });
-  }, [session, messages.length, setMessages, setSession]);
+  }, [user?.id, session?.id, firstName, startNewSession, setMessages]);
 
   return null;
 }

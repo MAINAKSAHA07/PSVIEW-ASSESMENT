@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { callOpenAI, parseJSON, MODELS } from '../../shared/openai.ts';
 import {
   candidateAnalysisPrompt,
+  candidateSummaryPrompt,
   messageGenerationPrompt,
   strategyCheckPrompt,
 } from '../../shared/prompts.ts';
@@ -204,6 +205,76 @@ Deno.serve(async (req) => {
             },
           }),
         ),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    if (action === 'summarize') {
+      const { data: simMessages } = await supabase
+        .from('messages')
+        .select('role, content, created_at')
+        .eq('session_id', session_id)
+        .eq('phase', 'simulation')
+        .order('created_at', { ascending: true });
+
+      const conversationText = (simMessages ?? [])
+        .map((m) => `${m.role}: ${m.content}`)
+        .join('\n');
+
+      const userTurns = (simMessages ?? []).filter((m) => m.role === 'user').length;
+
+      const raw = await callOpenAI(
+        MODELS.conversation,
+        candidateSummaryPrompt(
+          JSON.stringify(profile),
+          JSON.stringify(persona),
+          conversationText || 'No messages yet.',
+        ),
+        'Generate candidate summary JSON.',
+        true,
+      );
+
+      const summary = await parseJSON<Record<string, unknown>>(raw, () =>
+        callOpenAI(
+          MODELS.conversation,
+          candidateSummaryPrompt(
+            JSON.stringify(profile),
+            JSON.stringify(persona),
+            conversationText || 'No messages yet.',
+          ) + '\nReturn ONLY valid JSON.',
+          'Generate candidate summary JSON.',
+          true,
+        ),
+      );
+
+      const candidateSummary = {
+        ...summary,
+        conversation_turns: userTurns,
+      };
+
+      await supabase
+        .from('sessions')
+        .update({
+          candidate_summary: candidateSummary,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', session_id);
+
+      const { data: application } = await supabase
+        .from('candidate_applications')
+        .select('id')
+        .eq('conversation_session_id', session_id)
+        .maybeSingle();
+
+      if (application) {
+        await supabase
+          .from('candidate_applications')
+          .update({ candidate_summary: candidateSummary })
+          .eq('id', application.id);
+      }
+
+      return new Response(
+        JSON.stringify(sanitizeObject({ candidate_summary: candidateSummary })),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }

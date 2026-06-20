@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { IconPaperclip } from '../ui/Icons';
 
 interface MessageInputProps {
   onSend: (message: string) => Promise<void>;
@@ -31,50 +32,52 @@ export function MessageInput({
   };
 
   return (
-    <div className="border-t border-surface-border p-4">
+    <div className="border-t border-line p-4">
       <form onSubmit={handleSubmit} className="flex gap-2">
-        {onFileSelect && (
-          <>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".txt,.md,.pdf,.docx"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) onFileSelect(file);
-                e.target.value = '';
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={disabled || sending}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-surface-border text-txt-secondary transition hover:border-teal hover:text-teal disabled:opacity-50"
-              title="Upload file"
-            >
-              ↑
-            </button>
-          </>
-        )}
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSubmit(e);
-            }
-          }}
-          placeholder="Tell me about your company..."
-          rows={1}
-          disabled={disabled || sending}
-          className="flex-1 resize-none rounded-lg border border-surface-border bg-surface-card px-3 py-2 text-sm text-txt-primary placeholder:text-txt-tertiary focus:border-teal focus:outline-none disabled:opacity-50"
-        />
+        <div className="relative flex-1">
+          {onFileSelect && (
+            <>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".txt,.md,.pdf,.docx"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) onFileSelect(file);
+                  e.target.value = '';
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={disabled || sending}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-secondary transition hover:text-fg-primary disabled:opacity-50"
+                title="Upload file"
+              >
+                <IconPaperclip />
+              </button>
+            </>
+          )}
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(e);
+              }
+            }}
+            placeholder="Tell me about your company..."
+            rows={1}
+            disabled={disabled || sending}
+            className={`w-full resize-none rounded-[10px] border border-line bg-app-card py-2.5 text-sm text-fg-primary placeholder:text-fg-tertiary focus:border-coral focus:outline-none disabled:opacity-50 ${onFileSelect ? 'pl-10 pr-3' : 'px-3'}`}
+          />
+        </div>
         <button
           type="submit"
           disabled={!text.trim() || sending || disabled}
-          className="rounded-lg bg-coral px-4 py-2 text-sm font-medium text-white transition hover:bg-coral-dark disabled:opacity-50"
+          className="rounded-[10px] bg-coral px-4 py-2 text-sm font-medium text-white transition hover:bg-coral-dark disabled:opacity-50"
         >
           {sending ? '...' : 'Send'}
         </button>

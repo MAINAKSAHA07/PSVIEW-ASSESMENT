@@ -1,5 +1,4 @@
-[project]
-id = "agentforge"
+project_id = "fonfzwbbyluurdusytwu"
 
 [api]
 enabled = true

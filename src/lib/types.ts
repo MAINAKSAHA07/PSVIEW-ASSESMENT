@@ -3,6 +3,59 @@ export type ConfigSource = 'conversation' | 'upload' | 'quicksetup';
 export type MessagePhase = 'config' | 'simulation';
 export type MessageRole = 'agent' | 'user' | 'system';
 
+export type UserRole = 'admin' | 'employer' | 'candidate';
+export type ApplicationStatus =
+  | 'applied'
+  | 'agent_engaged'
+  | 'in_conversation'
+  | 'interview_scheduled'
+  | 'declined'
+  | 'withdrawn';
+
+export interface CandidateSummary {
+  interest_level: 'high' | 'medium' | 'low' | 'declined';
+  interest_label: string;
+  key_motivators: string[];
+  concerns: string[];
+  signals_detected: string[];
+  recommended_next_step: string;
+  engagement_score: number;
+  conversation_turns: number;
+  objections_raised: string[];
+  objections_resolved: string[];
+}
+
+export interface Profile {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  role: UserRole | null;
+  full_name: string | null;
+  email: string | null;
+  avatar_url: string | null;
+  company_name: string | null;
+  current_role: string | null;
+  linkedin_url: string | null;
+  resume_text: string | null;
+  skills: string[];
+  experience_years: number | null;
+  location: string | null;
+  open_to_roles: string[];
+  availability: string;
+}
+
+export interface CandidateApplication {
+  id: string;
+  created_at: string;
+  candidate_id: string;
+  session_id: string;
+  status: ApplicationStatus;
+  candidate_summary: CandidateSummary;
+  conversation_session_id: string | null;
+  notes: string | null;
+  candidate?: Profile;
+}
+
 export interface FieldSource {
   source: string | null;
   confidence: number | null;
@@ -95,6 +148,11 @@ export interface Session {
   candidate_context: CandidateContext;
   source_integration: string | null;
   candidate_source: Record<string, unknown>;
+  is_published?: boolean;
+  published_at?: string | null;
+  application_count?: number;
+  candidate_summary?: CandidateSummary | Record<string, never>;
+  parent_session_id?: string | null;
 }
 
 export interface Message {
@@ -127,6 +185,10 @@ export interface SimulateResponse {
   agent_message: string;
   reasoning: ReasoningTrace;
   candidate_analysis: CandidateAnalysis;
+}
+
+export interface SummarizeResponse {
+  candidate_summary: CandidateSummary;
 }
 
 export type AppPhase = 'landing' | SessionStatus;

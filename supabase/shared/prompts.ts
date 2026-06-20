@@ -197,6 +197,27 @@ Tag all sources as "uploaded_file" with appropriate confidence scores.
 ${GLOBAL_RULES}`;
 }
 
+export function uploadFollowUpPrompt(
+  profile: string,
+  gaps: string[],
+  companyName: string,
+): string {
+  return `You are an AI recruiting agent. A company just uploaded a document with their info.
+
+Extracted profile:
+${profile}
+
+Missing fields: ${gaps.length > 0 ? gaps.join(', ') : 'none, profile is complete'}
+
+Write ONE short conversational reply under 40 words.
+- Mention 1 specific detail you noticed from their file about ${companyName}
+- If fields are missing, ask about the most important gap with one question
+- If profile is complete, say you are ready to show who you have become for ${companyName}
+- Be warm and direct, not robotic
+
+${GLOBAL_RULES}`;
+}
+
 export function candidateAnalysisPrompt(
   message: string,
   history: string,
@@ -241,6 +262,41 @@ Return ONLY JSON:
   "adjustment_rationale": "string",
   "active_playbook": "not_looking|compensation|remote|too_small|happy_where_i_am|null"
 }
+
+${GLOBAL_RULES}`;
+}
+
+export function candidateSummaryPrompt(
+  companyProfile: string,
+  agentPersona: string,
+  messages: string,
+): string {
+  return `You are an expert recruiting analyst reviewing a conversation between a recruiting agent and a candidate.
+
+Company context:
+${companyProfile}
+
+Agent persona:
+${agentPersona}
+
+Full conversation:
+${messages}
+
+Generate a candidate assessment as JSON:
+{
+  "interest_level": "high" | "medium" | "low" | "declined",
+  "interest_label": "one-line summary of where the candidate stands",
+  "key_motivators": ["what excited them, 2-4 items"],
+  "concerns": ["what worried them or they pushed back on, 1-3 items"],
+  "signals_detected": ["specific behavioral observations from the conversation, 3-5 items"],
+  "recommended_next_step": "one specific, actionable recommendation",
+  "engagement_score": 0.0 to 1.0,
+  "conversation_turns": number,
+  "objections_raised": ["list of objection categories triggered"],
+  "objections_resolved": ["which objections were successfully addressed"]
+}
+
+Base every assessment on what the candidate actually said. Do not infer personality traits that were not demonstrated. Do not speculate beyond the conversation. If something is unclear, say so.
 
 ${GLOBAL_RULES}`;
 }

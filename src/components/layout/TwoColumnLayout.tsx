@@ -7,11 +7,13 @@ interface TwoColumnLayoutProps {
 
 export function TwoColumnLayout({ left, right }: TwoColumnLayoutProps) {
   return (
-    <div className="flex h-[calc(100vh-57px)] flex-col lg:flex-row">
-      <div className="flex min-h-0 flex-[3] flex-col border-b border-surface-border lg:border-b-0 lg:border-r">
+    <div className="flex h-[calc(100vh-57px)]">
+      <div className="flex min-h-0 w-[60%] flex-col border-r border-line bg-app">
         {left}
       </div>
-      <div className="flex min-h-0 flex-[2] flex-col">{right}</div>
+      <div className="flex min-h-0 w-[40%] flex-col overflow-hidden bg-app-reasoning">
+        {right}
+      </div>
     </div>
   );
 }

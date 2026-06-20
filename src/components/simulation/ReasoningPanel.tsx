@@ -9,18 +9,18 @@ interface ReasoningBlockProps {
 const BORDER_MAP = {
   teal: 'border-teal',
   coral: 'border-coral',
-  gray: 'border-txt-tertiary',
+  gray: 'border-fg-tertiary',
 };
 
 export function ReasoningBlock({ title, borderColor, children }: ReasoningBlockProps) {
   return (
     <div
-      className={`rounded-lg border-l-4 bg-[#13131A] p-3 ${BORDER_MAP[borderColor]}`}
+      className={`rounded-lg border-l-4 bg-app-card p-3 ${BORDER_MAP[borderColor]}`}
     >
-      <p className="font-mono text-[11px] font-medium uppercase tracking-wider text-txt-secondary">
+      <p className="font-mono text-[11px] font-medium uppercase tracking-wider text-fg-secondary">
         {title}
       </p>
-      <div className="mt-2 font-mono text-xs leading-relaxed text-txt-primary">
+      <div className="mt-2 font-mono text-xs leading-relaxed text-fg-primary">
         {children}
       </div>
     </div>
@@ -34,15 +34,15 @@ interface ReasoningPanelProps {
 
 export function ReasoningPanel({ reasoning, loading }: ReasoningPanelProps) {
   return (
-    <div className="flex h-full flex-col bg-[#13131A]">
-      <div className="border-b border-surface-border px-4 py-4">
-        <h2 className="flex items-center gap-2 font-serif text-lg text-txt-primary">
+    <div className="flex h-full flex-col bg-app-reasoning">
+      <div className="border-b border-line px-4 py-4">
+        <h2 className="flex items-center gap-2 font-serif text-lg text-fg-primary">
           <span className="text-teal">◉</span> Agent reasoning
         </h2>
       </div>
       <div className="flex-1 space-y-3 overflow-y-auto p-4 scrollbar-thin">
         {loading && (
-          <div className="flex items-center gap-2 text-sm text-teal animate-pulse">
+          <div className="flex animate-pulse items-center gap-2 text-sm text-teal">
             Analyzing...
           </div>
         )}
@@ -52,7 +52,7 @@ export function ReasoningPanel({ reasoning, loading }: ReasoningPanelProps) {
               <p>Sentiment: {reasoning.candidate_analysis.sentiment}</p>
               <p>Intent: {reasoning.candidate_analysis.intent}</p>
               {reasoning.candidate_analysis.signals.length > 0 && (
-                <ul className="mt-1 list-inside list-disc text-txt-secondary">
+                <ul className="mt-1 list-inside list-disc text-fg-secondary">
                   {reasoning.candidate_analysis.signals.map((s) => (
                     <li key={s}>{s}</li>
                   ))}
@@ -70,17 +70,17 @@ export function ReasoningPanel({ reasoning, loading }: ReasoningPanelProps) {
                 Vocabulary:{' '}
                 {reasoning.persona_check.vocabulary_compliance ? 'Compliant' : 'Review needed'}
               </p>
-              <p className="mt-1 text-txt-secondary">
+              <p className="mt-1 text-fg-secondary">
                 {reasoning.persona_check.notes}
               </p>
             </ReasoningBlock>
-            <p className="font-mono text-[11px] text-txt-tertiary">
+            <p className="font-mono text-[11px] text-fg-tertiary">
               {reasoning.strategy_position}
             </p>
           </>
         )}
         {!loading && !reasoning && (
-          <p className="text-sm text-txt-tertiary">
+          <p className="text-sm text-fg-tertiary">
             Reasoning traces appear here after each agent reply.
           </p>
         )}

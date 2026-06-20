@@ -31,9 +31,9 @@ export function QuickSetupForm({ onSubmit, disabled }: QuickSetupFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-3 space-y-2 rounded-xl border border-surface-border bg-surface-card p-4"
+      className="mt-3 space-y-2 rounded-xl border border-line bg-app-card p-4"
     >
-      <p className="text-xs font-medium text-txt-secondary">Quick setup</p>
+      <p className="text-xs font-medium text-fg-secondary">Quick setup</p>
       <div className="grid gap-2 sm:grid-cols-2">
         {KEY_PROFILE_FIELDS.map((field) => (
           <input
@@ -44,7 +44,7 @@ export function QuickSetupForm({ onSubmit, disabled }: QuickSetupFormProps) {
             onChange={(e) =>
               setForm((prev) => ({ ...prev, [field.key]: e.target.value }))
             }
-            className="rounded-lg border border-surface-border bg-surface-bg px-3 py-2 text-xs text-txt-primary placeholder:text-txt-tertiary focus:border-teal focus:outline-none"
+            className="rounded-lg border border-line bg-app px-3 py-2 text-xs text-fg-primary placeholder:text-fg-tertiary focus:border-teal focus:outline-none"
           />
         ))}
       </div>

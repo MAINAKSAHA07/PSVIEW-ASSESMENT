@@ -74,10 +74,10 @@ export function SynthesisProgress() {
   return (
     <div className="flex min-h-[calc(100vh-57px)] items-center justify-center px-6">
       <div className="w-full max-w-md space-y-6">
-        <h2 className="text-center font-serif text-2xl text-txt-primary">
+        <h2 className="text-center font-serif text-2xl text-fg-primary">
           Creating your agent
         </h2>
-        <div className="space-y-4 rounded-xl border border-surface-border bg-surface-card p-6">
+        <div className="space-y-4 rounded-xl border border-line bg-app-card p-6">
           {STEPS.map((step, i) => (
             <StepIndicator
               key={step}

@@ -9,17 +9,17 @@ export function StepIndicator({ label, status }: StepIndicatorProps) {
       <div
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium ${
           status === 'done'
-            ? 'bg-teal text-surface-bg'
+            ? 'bg-teal text-app-bg'
             : status === 'loading'
               ? 'border-2 border-teal text-teal animate-pulse'
-              : 'border border-surface-border text-txt-tertiary'
+              : 'border border-line text-fg-tertiary'
         }`}
       >
         {status === 'done' ? '✓' : status === 'loading' ? '·' : ''}
       </div>
       <p
         className={`text-sm ${
-          status === 'pending' ? 'text-txt-tertiary' : 'text-txt-primary'
+          status === 'pending' ? 'text-fg-tertiary' : 'text-fg-primary'
         }`}
       >
         {label}

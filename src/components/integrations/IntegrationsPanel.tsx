@@ -17,13 +17,13 @@ export function IntegrationsPanel({ open, onClose }: IntegrationsPanelProps) {
         onClick={onClose}
         aria-label="Close integrations panel"
       />
-      <div className="relative flex h-full w-full max-w-md flex-col bg-surface-card shadow-xl">
-        <div className="flex items-center justify-between border-b border-surface-border px-4 py-4">
-          <h2 className="font-serif text-xl text-txt-primary">Integrations</h2>
+      <div className="relative flex h-full w-full max-w-md flex-col bg-app-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-line px-4 py-4">
+          <h2 className="font-serif text-xl text-fg-primary">Integrations</h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-txt-tertiary hover:text-txt-primary"
+            className="text-fg-tertiary hover:text-fg-primary"
           >
             ✕
           </button>

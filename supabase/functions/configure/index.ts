@@ -4,6 +4,7 @@ import {
   CONFIG_CONVERSATION_PROMPT,
   extractionPrompt,
   uploadExtractionPrompt,
+  uploadFollowUpPrompt,
 } from '../../shared/prompts.ts';
 import { sanitizeObject } from '../../shared/sanitize.ts';
 import type { CompanyProfile } from '../../shared/types.ts';
@@ -119,7 +120,9 @@ User's latest message: ${message}`;
       role: 'agent',
       content: agentReply,
     },
-  ]);
+  ]).then(({ error }) => {
+    if (error) throw new Error(`Failed to save messages: ${error.message}`);
+  });
 
   const ready =
     isProfileReady(updatedProfile) ||
@@ -172,17 +175,33 @@ async function handleUpload(
   }
 
   const gaps = getProfileGaps(profile);
-  const agentReply =
-    gaps.length > 0
-      ? `I pulled details from your file. Still need: ${gaps.join(', ')}. Can you fill in those gaps?`
-      : 'Got everything I need from your file. Ready to see who I have become?';
+  const companyName = profile.company_name ?? 'your company';
 
-  await supabase.from('messages').insert({
-    session_id: sessionId,
-    phase: 'config',
-    role: 'system',
-    content: `File uploaded (${fileText.length} chars extracted)`,
-  });
+  const agentReply = await callOpenAI(
+    MODELS.conversation,
+    uploadFollowUpPrompt(
+      JSON.stringify(profile),
+      gaps,
+      companyName,
+    ),
+    `Uploaded document for ${companyName}. Gaps: ${gaps.join(', ') || 'none'}.`,
+  );
+
+  const { error: msgError } = await supabase.from('messages').insert([
+    {
+      session_id: sessionId,
+      phase: 'config',
+      role: 'user',
+      content: `Uploaded company document (${fileText.length} characters)`,
+    },
+    {
+      session_id: sessionId,
+      phase: 'config',
+      role: 'agent',
+      content: agentReply,
+    },
+  ]);
+  if (msgError) throw new Error(`Failed to save messages: ${msgError.message}`);
 
   await supabase
     .from('sessions')

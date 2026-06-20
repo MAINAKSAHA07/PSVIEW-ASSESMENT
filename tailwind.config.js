@@ -5,27 +5,42 @@ export default {
     extend: {
       colors: {
         coral: {
-          DEFAULT: '#E8614D',
-          dark: '#C44A38',
+          DEFAULT: 'var(--coral)',
+          dark: 'var(--coral-dark)',
           light: 'rgba(232, 97, 77, 0.1)',
         },
         teal: {
-          DEFAULT: '#2DD4A8',
+          DEFAULT: 'var(--teal)',
           dark: '#1AAF8B',
           light: 'rgba(45, 212, 168, 0.1)',
         },
-        surface: {
-          bg: '#0F0F13',
-          card: '#1A1A23',
-          raised: '#24243A',
-          border: '#2A2A3C',
+        app: {
+          DEFAULT: 'var(--bg-primary)',
+          secondary: 'var(--bg-secondary)',
+          tertiary: 'var(--bg-tertiary)',
+          card: 'var(--surface-card)',
+          raised: 'var(--surface-raised)',
+          reasoning: 'var(--surface-reasoning)',
         },
-        txt: {
-          primary: '#ECECF1',
-          secondary: '#8B8B9E',
-          tertiary: '#4A4A5C',
+        fg: {
+          primary: 'var(--text-primary)',
+          secondary: 'var(--text-secondary)',
+          tertiary: 'var(--text-tertiary)',
         },
-        error: '#F87171',
+        line: {
+          DEFAULT: 'var(--border-default)',
+          subtle: 'var(--border-subtle)',
+        },
+        err: 'var(--error)',
+        agent: {
+          bubble: 'var(--agent-bubble-bg)',
+        },
+        tag: {
+          teal: 'var(--tag-teal-text)',
+          'teal-bg': 'var(--tag-teal-bg)',
+          error: 'var(--tag-error-text)',
+          'error-bg': 'var(--tag-error-bg)',
+        },
       },
       fontFamily: {
         serif: ['Instrument Serif', 'Georgia', 'serif'],

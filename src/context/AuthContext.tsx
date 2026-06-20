@@ -23,8 +23,9 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 function getFirstName(user: User | null): string {
   if (!user) return 'there';
   const meta = user.user_metadata as Record<string, string | undefined>;
+  if (meta.given_name?.trim()) return meta.given_name.trim();
   const fullName = meta.full_name ?? meta.name ?? '';
-  const first = fullName.split(' ')[0];
+  const first = fullName.trim().split(/\s+/)[0];
   return first || 'there';
 }
 
@@ -53,6 +54,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       provider: 'google',
       options: {
         redirectTo: window.location.origin,
+        queryParams: {
+          access_type: 'online',
+          prompt: 'select_account',
+        },
       },
     });
     if (error) throw new Error(error.message);

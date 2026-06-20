@@ -1,7 +1,7 @@
 import { updateSessionStatus, resetSessionForReconfigure } from '../../lib/api';
 import { useSessionContext } from '../../context/SessionContext';
 
-const BORDER_COLORS = ['border-coral', 'border-teal', 'border-txt-tertiary'];
+const BORDER_COLORS = ['border-coral', 'border-teal', 'border-fg-tertiary'];
 
 export function StrategyPlanCard() {
   const { session, setSession, setPhase } = useSessionContext();
@@ -31,21 +31,21 @@ export function StrategyPlanCard() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-surface-border bg-surface-card p-6">
-        <h3 className="font-serif text-xl text-txt-primary">Outreach strategy</h3>
+      <div className="rounded-xl border border-line bg-app-card p-6">
+        <h3 className="font-serif text-xl text-fg-primary">Outreach strategy</h3>
         <div className="mt-4 space-y-3">
           {strategy.steps.map((step, i) => (
             <div
               key={step.position}
-              className={`rounded-lg border-l-4 bg-surface-bg p-4 ${BORDER_COLORS[i] ?? 'border-surface-border'}`}
+              className={`rounded-lg border-l-4 bg-app p-4 ${BORDER_COLORS[i] ?? 'border-line'}`}
             >
-              <p className="text-xs font-medium text-txt-tertiary">
+              <p className="text-xs font-medium text-fg-tertiary">
                 Message {step.position}
               </p>
-              <p className="mt-1 text-sm font-medium text-txt-primary">
+              <p className="mt-1 text-sm font-medium text-fg-primary">
                 {step.intent}
               </p>
-              <p className="mt-1 text-xs text-txt-secondary">{step.approach}</p>
+              <p className="mt-1 text-xs text-fg-secondary">{step.approach}</p>
               <p className="mt-2 text-[11px] text-teal">{step.tone_target}</p>
             </div>
           ))}
@@ -63,7 +63,7 @@ export function StrategyPlanCard() {
         <button
           type="button"
           onClick={handleReconfigure}
-          className="rounded-lg border border-surface-border px-4 py-3 text-sm text-txt-secondary hover:border-coral hover:text-coral"
+          className="rounded-lg border border-line px-4 py-3 text-sm text-fg-secondary hover:border-coral hover:text-coral"
         >
           Reconfigure
         </button>

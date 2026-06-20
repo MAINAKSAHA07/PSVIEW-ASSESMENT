@@ -17,7 +17,7 @@ export function QuickReplySuggestions({
           type="button"
           disabled={disabled}
           onClick={() => onSelect(text)}
-          className="rounded-full border border-surface-border px-3 py-1 text-xs text-txt-secondary transition hover:border-teal hover:text-teal disabled:opacity-50"
+          className="rounded-full border border-line px-3 py-1 text-xs text-fg-secondary transition hover:border-teal hover:text-teal disabled:opacity-50"
         >
           {text}
         </button>
