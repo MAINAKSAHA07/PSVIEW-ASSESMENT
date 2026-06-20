@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { fetchMessages, synthesizeFull } from '../../lib/api';
+import { useEffect, useRef, useState } from 'react';
+import { fetchMessages, synthesizeFull, updateSessionStatus } from '../../lib/api';
 import { useSessionContext } from '../../context/SessionContext';
 import { StepIndicator } from './StepIndicator';
 
@@ -14,11 +14,13 @@ export function SynthesisProgress() {
     useSessionContext();
   const [activeStep, setActiveStep] = useState(0);
   const [doneSteps, setDoneSteps] = useState<number[]>([]);
+  const synthesisStartedRef = useRef(false);
 
   useEffect(() => {
-    if (!session) return;
-    const sessionSnapshot = session;
+    if (!session?.id || synthesisStartedRef.current) return;
+    synthesisStartedRef.current = true;
 
+    const sessionSnapshot = session;
     let cancelled = false;
 
     async function run() {
@@ -57,19 +59,26 @@ export function SynthesisProgress() {
           setError(
             err instanceof Error ? err.message : 'Synthesis failed',
           );
+          try {
+            await updateSessionStatus(sessionSnapshot.id, 'configuring');
+            setSession({ ...sessionSnapshot, status: 'configuring' });
+          } catch {
+            // ignore secondary failure
+          }
           setPhase('configuring');
         }
       } finally {
+        clearInterval(stepTimer);
         if (!cancelled) setLoading(false);
       }
     }
 
-    run();
+    void run();
 
     return () => {
       cancelled = true;
     };
-  }, [session?.id]);
+  }, [session?.id, setError, setLoading, setMessages, setPhase, setSession]);
 
   return (
     <div className="flex min-h-[calc(100vh-57px)] items-center justify-center px-6">

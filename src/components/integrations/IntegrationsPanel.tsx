@@ -36,7 +36,7 @@ export function IntegrationsPanel({ open, onClose }: IntegrationsPanelProps) {
               badge="Coming Soon"
             />
           ))}
-          <IntegrationRow name="Upload CSV" badge="Active" />
+          <IntegrationRow name="Upload CSV" badge="Coming Soon" />
         </div>
       </div>
     </div>

@@ -67,7 +67,7 @@ export function CompanyManagement({
     <div className="rounded-lg border border-line bg-app-card p-4">
       <h3 className="text-sm font-medium text-fg-primary">Company management</h3>
       <p className="mt-1 text-xs text-fg-secondary">
-        Add hiring companies and assign an employer account.
+        Add hiring companies and assign an employer account. Users must sign in with Google using the exact email address you enter.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-4 grid gap-3 sm:grid-cols-3">

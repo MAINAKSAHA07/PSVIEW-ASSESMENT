@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { IconPaperclip } from '../ui/Icons';
 
 interface VoiceConfigInputProps {
@@ -42,7 +42,21 @@ export function VoiceConfigInput({
   const textMode = inputMode === 'text';
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [showYourTurn, setShowYourTurn] = useState(false);
+  const wasListeningRef = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isListening && !wasListeningRef.current && !isSpeaking && !textMode) {
+      setShowYourTurn(true);
+      const timer = window.setTimeout(() => setShowYourTurn(false), 2500);
+      wasListeningRef.current = isListening;
+      return () => window.clearTimeout(timer);
+    }
+    wasListeningRef.current = isListening;
+    if (!isListening) setShowYourTurn(false);
+    return undefined;
+  }, [isListening, isSpeaking, textMode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,7 +128,13 @@ export function VoiceConfigInput({
 
       {!textMode ? (
         <div className="flex flex-col items-center gap-4">
-          {statusText && (
+          {showYourTurn && (
+            <p className="animate-pulse rounded-full bg-teal/15 px-4 py-1.5 text-sm font-medium text-teal">
+              Your turn — speak now
+            </p>
+          )}
+
+          {statusText && !showYourTurn && (
             <p className="text-center text-sm text-fg-secondary">{statusText}</p>
           )}
 

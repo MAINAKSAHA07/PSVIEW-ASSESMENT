@@ -204,8 +204,18 @@ export interface SynthesizeResponse {
 
 export interface SimulateResponse {
   agent_message: string;
-  reasoning: ReasoningTrace;
+  reasoning?: ReasoningTrace;
+  candidate_analysis?: CandidateAnalysis;
+}
+
+export interface SimulateAnalyzeResponse {
   candidate_analysis: CandidateAnalysis;
+  strategy_check?: {
+    adjustment_needed: boolean;
+    adjustment_rationale: string;
+    active_playbook: string | null;
+  };
+  reasoning?: ReasoningTrace;
 }
 
 export interface SummarizeResponse {

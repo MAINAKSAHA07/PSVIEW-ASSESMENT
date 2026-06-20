@@ -59,7 +59,8 @@ React, TypeScript, Supabase (Postgres + Edge Functions), OpenAI API
 
 ## Live demo
 
-https://psviewagent.vercel.app
+- **App:** https://psviewagent.vercel.app
+- **Repo:** https://github.com/MAINAKSAHA07/PSVIEW-ASSESMENT
 
 ## 2-minute evaluator path
 

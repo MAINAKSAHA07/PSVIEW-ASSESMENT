@@ -44,7 +44,7 @@ export function CandidateManagement({
       setCurrentRole('');
       setLocation('');
       setSkillsText('');
-      setSuccess(`${name} added as a candidate.`);
+      setSuccess(`${name} added. They must sign in with Google using ${email.trim()}.`);
       onRefresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add candidate');
@@ -58,6 +58,7 @@ export function CandidateManagement({
       <h3 className="text-sm font-medium text-fg-primary">Candidate management</h3>
       <p className="mt-1 text-xs text-fg-secondary">
         Add candidates to the platform and populate their profile for matching.
+        Users must sign in with Google using the exact email address you enter here.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-4 grid gap-3 sm:grid-cols-2">

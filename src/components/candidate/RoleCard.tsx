@@ -1,5 +1,6 @@
 import type { Profile, RoleMatch, Session } from '../../lib/types';
 import { MatchBadge } from '../shared/MatchBadge';
+import { MatchBreakdown } from '../shared/MatchBreakdown';
 
 interface RoleCardProps {
   session: Session;
@@ -51,13 +52,7 @@ export function RoleCard({
         </p>
       )}
 
-      {match.highlights.length > 0 && (
-        <ul className="mt-3 space-y-1 text-xs text-fg-secondary">
-          {match.highlights.map((item) => (
-            <li key={item}>• {item}</li>
-          ))}
-        </ul>
-      )}
+      <MatchBreakdown match={match} />
 
       {!profile?.skills?.length && (
         <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">

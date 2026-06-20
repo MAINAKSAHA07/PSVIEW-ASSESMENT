@@ -79,6 +79,64 @@ async function checkStrategy(
   );
 }
 
+async function isCandidateConversationSession(
+  supabase: ReturnType<typeof createClient>,
+  session: { id: string; parent_session_id?: string | null },
+): Promise<boolean> {
+  if (!session.parent_session_id) return false;
+  const { data } = await supabase
+    .from('candidate_applications')
+    .select('id')
+    .eq('conversation_session_id', session.id)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+function shouldHideReasoning(
+  body: Record<string, unknown>,
+  isCandidateSession: boolean,
+): boolean {
+  return body.hide_reasoning === true || isCandidateSession;
+}
+
+function publicSimulatePayload(
+  payload: Record<string, unknown>,
+  hideReasoning: boolean,
+): Record<string, unknown> {
+  if (!hideReasoning) return payload;
+  const next = { ...payload };
+  delete next.reasoning;
+  delete next.candidate_analysis;
+  delete next.strategy_check;
+  return next;
+}
+
+function buildPartialReasoning(
+  candidateAnalysis: Record<string, unknown>,
+  strategyCheck: Record<string, unknown>,
+  position: string,
+): ReasoningTrace {
+  return {
+    candidate_analysis: {
+      sentiment: String(candidateAnalysis.sentiment ?? 'neutral'),
+      intent: String(candidateAnalysis.intent ?? 'asking_questions'),
+      signals: Array.isArray(candidateAnalysis.signals)
+        ? candidateAnalysis.signals.map(String)
+        : [],
+    },
+    strategy_adjustment: strategyCheck.adjustment_needed
+      ? String(strategyCheck.adjustment_rationale ?? 'Adjusting strategy...')
+      : 'Analyzing strategy fit...',
+    persona_check: {
+      tone_match: true,
+      vocabulary_compliance: true,
+      notes: 'Generating response...',
+    },
+    message_rationale: 'Crafting the next message...',
+    strategy_position: position,
+  };
+}
+
 async function loadCandidateProfileText(
   supabase: ReturnType<typeof createClient>,
   sessionId: string,
@@ -193,6 +251,10 @@ Deno.serve(async (req) => {
     const profile: CompanyProfile = session.company_profile ?? {};
     const persona: AgentPersona = session.agent_persona ?? {};
     const strategy: AgentStrategy = session.agent_strategy ?? {};
+    const hideReasoning = shouldHideReasoning(
+      body,
+      await isCandidateConversationSession(supabase, session),
+    );
 
     if (action === 'reset') {
       await supabase
@@ -233,15 +295,20 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify(
-          sanitizeObject({
-            agent_message: generated.message,
-            reasoning: generated.reasoning,
-            candidate_analysis: {
-              sentiment: 'neutral',
-              intent: 'asking_questions',
-              signals: [],
-            },
-          }),
+          sanitizeObject(
+            publicSimulatePayload(
+              {
+                agent_message: generated.message,
+                reasoning: generated.reasoning,
+                candidate_analysis: {
+                  sentiment: 'neutral',
+                  intent: 'asking_questions',
+                  signals: [],
+                },
+              },
+              hideReasoning,
+            ),
+          ),
         ),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
@@ -317,6 +384,45 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (action === 'analyze') {
+      const candidateMessage = body.candidate_message;
+      if (!candidateMessage) throw new Error('candidate_message is required');
+
+      const { data: simMessages } = await supabase
+        .from('messages')
+        .select('role, content')
+        .eq('session_id', session_id)
+        .eq('phase', 'simulation')
+        .order('created_at', { ascending: true });
+
+      const history = (simMessages ?? [])
+        .map((m) => `${m.role}: ${m.content}`)
+        .join('\n');
+
+      const agentCount = (simMessages ?? []).filter((m) => m.role === 'agent').length;
+      const position = `Message ${agentCount + 1} of ${strategy.sequence_length ?? 3}`;
+
+      const [candidateAnalysis, strategyCheck] = await Promise.all([
+        analyzeCandidate(candidateMessage, history),
+        checkStrategy(
+          JSON.stringify({ message: candidateMessage }),
+          strategy,
+          position,
+        ),
+      ]);
+
+      const payload: Record<string, unknown> = {
+        candidate_analysis: candidateAnalysis,
+        strategy_check: strategyCheck,
+        reasoning: buildPartialReasoning(candidateAnalysis, strategyCheck, position),
+      };
+
+      return new Response(
+        JSON.stringify(sanitizeObject(publicSimulatePayload(payload, hideReasoning))),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     if (action !== 'reply') throw new Error(`Unknown action: ${action}`);
 
     const candidateMessage = body.candidate_message;
@@ -336,13 +442,22 @@ Deno.serve(async (req) => {
     const agentCount = (simMessages ?? []).filter((m) => m.role === 'agent').length;
     const position = `Message ${agentCount + 1} of ${strategy.sequence_length ?? 3}`;
 
+    const preAnalysis = body.pre_analysis as Record<string, unknown> | undefined;
+    const preStrategyCheck = body.pre_strategy_check as
+      | Record<string, unknown>
+      | undefined;
+
     const [candidateAnalysis, strategyCheck, candidateProfile] = await Promise.all([
-      analyzeCandidate(candidateMessage, history),
-      checkStrategy(
-        JSON.stringify({ message: candidateMessage }),
-        strategy,
-        position,
-      ),
+      preAnalysis
+        ? Promise.resolve(preAnalysis)
+        : analyzeCandidate(candidateMessage, history),
+      preStrategyCheck
+        ? Promise.resolve(preStrategyCheck)
+        : checkStrategy(
+            JSON.stringify({ message: candidateMessage }),
+            strategy,
+            position,
+          ),
       loadCandidateProfileText(supabase, session_id),
     ]);
 
@@ -374,11 +489,16 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify(
-        sanitizeObject({
-          agent_message: generated.message,
-          reasoning: generated.reasoning,
-          candidate_analysis: candidateAnalysis,
-        }),
+        sanitizeObject(
+          publicSimulatePayload(
+            {
+              agent_message: generated.message,
+              reasoning: generated.reasoning,
+              candidate_analysis: candidateAnalysis,
+            },
+            hideReasoning,
+          ),
+        ),
       ),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );

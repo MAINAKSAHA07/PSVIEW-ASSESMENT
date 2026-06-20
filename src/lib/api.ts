@@ -12,6 +12,7 @@ import type {
   Profile,
   Session,
   SimulateResponse,
+  SimulateAnalyzeResponse,
   SummarizeResponse,
   SynthesizeResponse,
   UserRole,
@@ -74,23 +75,46 @@ export async function synthesizeFull(
   });
 }
 
+export async function simulateAnalyze(
+  sessionId: string,
+  candidateMessage: string,
+  options?: { hideReasoning?: boolean },
+): Promise<SimulateAnalyzeResponse> {
+  return invokeFunction<SimulateAnalyzeResponse>('simulate', {
+    session_id: sessionId,
+    action: 'analyze',
+    candidate_message: candidateMessage,
+    hide_reasoning: options?.hideReasoning,
+  });
+}
+
 export async function simulateReply(
   sessionId: string,
   candidateMessage: string,
+  options?: {
+    hideReasoning?: boolean;
+    preAnalysis?: Record<string, unknown>;
+    preStrategyCheck?: Record<string, unknown>;
+  },
 ): Promise<SimulateResponse> {
   return invokeFunction<SimulateResponse>('simulate', {
     session_id: sessionId,
     action: 'reply',
     candidate_message: candidateMessage,
+    hide_reasoning: options?.hideReasoning,
+    pre_analysis: options?.preAnalysis,
+    pre_strategy_check: options?.preStrategyCheck,
   });
 }
 
 export async function simulateReset(
   sessionId: string,
+  options?: { hideReasoning?: boolean },
 ): Promise<SimulateResponse> {
   return invokeFunction<SimulateResponse>('simulate', {
     session_id: sessionId,
     action: 'reset',
+    hide_reasoning: options?.hideReasoning,
   });
 }
 

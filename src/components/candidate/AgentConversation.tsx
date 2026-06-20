@@ -4,7 +4,7 @@ import {
   simulateReply,
   simulateSummarize,
 } from '../../lib/api';
-import type { CandidateApplication, Message, ReasoningTrace } from '../../lib/types';
+import type { CandidateApplication, Message } from '../../lib/types';
 import { ConversationThread } from '../simulation/ConversationThread';
 import { QuickReplySuggestions } from '../simulation/QuickReplySuggestions';
 import { CandidateSummaryCard } from '../shared/CandidateSummaryCard';
@@ -50,7 +50,9 @@ export function AgentConversation({ application, onBack }: AgentConversationProp
     setText('');
 
     try {
-      const response = await simulateReply(sessionId, message.trim());
+      const response = await simulateReply(sessionId, message.trim(), {
+        hideReasoning: true,
+      });
       const agentMsg: Message = {
         id: crypto.randomUUID(),
         session_id: sessionId,
@@ -58,7 +60,7 @@ export function AgentConversation({ application, onBack }: AgentConversationProp
         phase: 'simulation',
         role: 'agent',
         content: response.agent_message,
-        reasoning: response.reasoning as ReasoningTrace,
+        reasoning: null,
       };
       setMessages((prev) => [...prev, agentMsg]);
     } catch (err) {
