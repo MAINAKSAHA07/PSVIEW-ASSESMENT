@@ -3,7 +3,11 @@ import { fetchCandidateApplications } from '../../lib/api';
 import { useAuthContext } from '../../context/AuthContext';
 import type { CandidateApplication, Session } from '../../lib/types';
 
-export function MyApplications() {
+interface MyApplicationsProps {
+  onContinue?: (application: CandidateApplication) => void;
+}
+
+export function MyApplications({ onContinue }: MyApplicationsProps) {
   const { user } = useAuthContext();
   const [applications, setApplications] = useState<
     (CandidateApplication & { session?: Session })[]
@@ -44,13 +48,26 @@ export function MyApplications() {
             key={app.id}
             className="rounded-lg border border-line bg-app-card p-4"
           >
-            <p className="font-medium text-fg-primary">
-              {company?.role ?? 'Role'} at {company?.company_name ?? 'Company'}
-            </p>
-            <p className="mt-1 text-sm text-fg-secondary">
-              Applied {new Date(app.created_at).toLocaleDateString()} ·{' '}
-              {app.status.replace('_', ' ')}
-            </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-medium text-fg-primary">
+                  {company?.role ?? 'Role'} at {company?.company_name ?? 'Company'}
+                </p>
+                <p className="mt-1 text-sm text-fg-secondary">
+                  Applied {new Date(app.created_at).toLocaleDateString()} ·{' '}
+                  {app.status.replace('_', ' ')}
+                </p>
+              </div>
+              {onContinue && app.conversation_session_id && (
+                <button
+                  type="button"
+                  onClick={() => onContinue(app)}
+                  className="shrink-0 rounded-lg bg-coral px-4 py-2 text-sm font-medium text-white hover:bg-coral-dark"
+                >
+                  Continue conversation
+                </button>
+              )}
+            </div>
           </div>
         );
       })}

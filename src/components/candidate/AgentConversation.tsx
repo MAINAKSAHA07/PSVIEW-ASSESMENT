@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   fetchMessages,
   simulateReply,
+  simulateReset,
   simulateSummarize,
 } from '../../lib/api';
 import type { CandidateApplication, Message } from '../../lib/types';
@@ -27,9 +28,45 @@ export function AgentConversation({ application, onBack }: AgentConversationProp
 
   useEffect(() => {
     if (!sessionId) return;
-    fetchMessages(sessionId, 'simulation')
-      .then(setMessages)
-      .catch(() => undefined);
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const existing = await fetchMessages(sessionId, 'simulation');
+        if (cancelled) return;
+
+        if (existing.length > 0) {
+          setMessages(existing);
+          return;
+        }
+
+        const response = await simulateReset(sessionId, { hideReasoning: true });
+        if (cancelled) return;
+
+        if (response.agent_message) {
+          setMessages([
+            {
+              id: crypto.randomUUID(),
+              session_id: sessionId,
+              created_at: new Date().toISOString(),
+              phase: 'simulation',
+              role: 'agent',
+              content: response.agent_message,
+              reasoning: null,
+            },
+          ]);
+        }
+      } catch {
+        if (!cancelled) {
+          setError('Could not load conversation. Try again in a moment.');
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [sessionId]);
 
   const handleSend = async (message: string) => {

@@ -26,6 +26,10 @@ async function invokeFunction<T>(
     body,
   });
 
+  if (data && typeof data === 'object' && 'error' in data && data.error) {
+    throw new Error(String((data as { error: string }).error));
+  }
+
   if (error) {
     throw new Error(error.message);
   }
@@ -329,7 +333,21 @@ export async function startCandidateConversation(
   const convSessionId = appRow.conversation_session_id as string | undefined;
 
   if (convSessionId) {
-    await simulateReset(convSessionId);
+    const { count, error: countErr } = await supabase
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('session_id', convSessionId)
+      .eq('phase', 'simulation');
+
+    const hasMessages = !countErr && (count ?? 0) > 0;
+
+    if (!hasMessages) {
+      try {
+        await simulateReset(convSessionId, { hideReasoning: true });
+      } catch {
+        // Application was created; conversation view can retry opening message.
+      }
+    }
   }
 
   return mapApplication(appRow);

@@ -84,7 +84,7 @@ export function CandidateDashboard() {
       {tab === 'browse' ? (
         <RoleBrowser onTalk={handleTalk} startingId={startingId} />
       ) : tab === 'applications' ? (
-        <MyApplications />
+        <MyApplications onContinue={setActiveApp} />
       ) : (
         <CandidateProfile />
       )}

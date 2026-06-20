@@ -20,7 +20,7 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type',
 };
 
-function getSupabase(req: Request) {
+function getUserClient(req: Request) {
   return createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_ANON_KEY') ?? '',
@@ -30,6 +30,36 @@ function getSupabase(req: Request) {
       },
     },
   );
+}
+
+function getServiceClient() {
+  return createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+  );
+}
+
+async function assertSessionAccess(
+  authClient: ReturnType<typeof createClient>,
+  userId: string,
+  session: { id: string; user_id: string; parent_session_id?: string | null },
+): Promise<'employer' | 'candidate'> {
+  if (session.user_id === userId) {
+    return 'employer';
+  }
+
+  if (session.parent_session_id) {
+    const { data: application } = await authClient
+      .from('candidate_applications')
+      .select('id')
+      .eq('conversation_session_id', session.id)
+      .eq('candidate_id', userId)
+      .maybeSingle();
+
+    if (application) return 'candidate';
+  }
+
+  throw new Error('Session not found');
 }
 
 async function analyzeCandidate(message: string, history: string) {
@@ -43,6 +73,9 @@ async function analyzeCandidate(message: string, history: string) {
     sentiment: string;
     intent: string;
     signals: string[];
+    action_requested?: string;
+    topics_already_covered?: string[];
+    conversation_stage?: string;
   }>(raw, () =>
     callOpenAI(
       MODELS.utility,
@@ -68,6 +101,9 @@ async function checkStrategy(
     adjustment_needed: boolean;
     adjustment_rationale: string;
     active_playbook: string | null;
+    next_goal?: string;
+    should_push_for_call?: boolean;
+    candidate_readiness?: string;
   }>(raw, () =>
     callOpenAI(
       MODELS.utility,
@@ -170,6 +206,56 @@ async function loadCandidateProfileText(
   });
 }
 
+function buildStrategyAdjustments(
+  strategy: AgentStrategy,
+  candidateAnalysis: Record<string, unknown>,
+  strategyCheck: Record<string, unknown>,
+): Promise<string> {
+  const shouldPushForCall = Boolean(strategyCheck.should_push_for_call);
+  const actionRequested = String(candidateAnalysis.action_requested ?? 'none');
+  const topicsCovered = Array.isArray(candidateAnalysis.topics_already_covered)
+    ? candidateAnalysis.topics_already_covered.map(String)
+    : [];
+  const nextGoal = strategyCheck.next_goal
+    ? String(strategyCheck.next_goal)
+    : null;
+
+  let strategyAdjustments = 'No adjustment needed';
+  if (strategyCheck.adjustment_needed) {
+    const playbookKey = strategyCheck.active_playbook as string | null;
+    const playbookText =
+      playbookKey && strategy.objection_playbook[playbookKey]
+        ? strategy.objection_playbook[playbookKey]
+        : '';
+    strategyAdjustments = `${strategyCheck.adjustment_rationale}. Playbook: ${playbookText}`;
+  }
+
+  if (nextGoal) {
+    strategyAdjustments += ` NEXT GOAL: ${nextGoal}.`;
+  }
+
+  if (shouldPushForCall) {
+    strategyAdjustments +=
+      ' PUSH FOR CALL: Candidate is ready, propose a specific time.';
+  }
+
+  if (actionRequested && actionRequested !== 'none') {
+    strategyAdjustments += ` ACTION REQUESTED: Candidate asked to ${actionRequested}. Execute this, do not deflect.`;
+  }
+
+  if (topicsCovered.length > 0) {
+    strategyAdjustments += ` ALREADY DISCUSSED (do not repeat): ${topicsCovered.join(', ')}.`;
+  }
+
+  const readiness = strategyCheck.candidate_readiness;
+  if (readiness === 'already_asked' || readiness === 'ready_to_schedule') {
+    strategyAdjustments +=
+      ' CANDIDATE READINESS: High. Act immediately on their request, do not re-pitch.';
+  }
+
+  return strategyAdjustments;
+}
+
 async function generateResponse(
   persona: AgentPersona,
   profile: CompanyProfile,
@@ -183,15 +269,11 @@ async function generateResponse(
   const stepIndex = Math.min(agentCount, strategy.steps.length - 1);
   const currentStep = strategy.steps[stepIndex];
 
-  let strategyAdjustments = 'No adjustment needed';
-  if (strategyCheck.adjustment_needed) {
-    const playbookKey = strategyCheck.active_playbook as string | null;
-    const playbookText =
-      playbookKey && strategy.objection_playbook[playbookKey]
-        ? strategy.objection_playbook[playbookKey]
-        : '';
-    strategyAdjustments = `${strategyCheck.adjustment_rationale}. Playbook: ${playbookText}`;
-  }
+  const strategyAdjustments = buildStrategyAdjustments(
+    strategy,
+    candidateAnalysis,
+    strategyCheck,
+  );
 
   const raw = await callOpenAI(
     MODELS.conversation,
@@ -232,7 +314,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabase = getSupabase(req);
+    const authClient = getUserClient(req);
+    const db = getServiceClient();
     const body = await req.json();
     const { session_id, action } = body;
 
@@ -240,7 +323,14 @@ Deno.serve(async (req) => {
       throw new Error('session_id and action are required');
     }
 
-    const { data: session, error } = await supabase
+    const {
+      data: { user },
+      error: authError,
+    } = await authClient.auth.getUser();
+
+    if (authError || !user) throw new Error('Unauthorized');
+
+    const { data: session, error } = await db
       .from('sessions')
       .select('*')
       .eq('id', session_id)
@@ -248,22 +338,24 @@ Deno.serve(async (req) => {
 
     if (error || !session) throw new Error('Session not found');
 
+    await assertSessionAccess(authClient, user.id, session);
+
     const profile: CompanyProfile = session.company_profile ?? {};
     const persona: AgentPersona = session.agent_persona ?? {};
     const strategy: AgentStrategy = session.agent_strategy ?? {};
     const hideReasoning = shouldHideReasoning(
       body,
-      await isCandidateConversationSession(supabase, session),
+      await isCandidateConversationSession(db, session),
     );
 
     if (action === 'reset') {
-      await supabase
+      await db
         .from('messages')
         .delete()
         .eq('session_id', session_id)
         .eq('phase', 'simulation');
 
-      const candidateProfile = await loadCandidateProfileText(supabase, session_id);
+      const candidateProfile = await loadCandidateProfileText(db, session_id);
       const step = strategy.steps[0];
       const raw = await callOpenAI(
         MODELS.pipeline,
@@ -285,7 +377,7 @@ Deno.serve(async (req) => {
         reasoning: ReasoningTrace;
       }>(raw, () => Promise.resolve(raw).then((t) => t));
 
-      await supabase.from('messages').insert({
+      await db.from('messages').insert({
         session_id,
         phase: 'simulation',
         role: 'agent',
@@ -315,7 +407,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'summarize') {
-      const { data: simMessages } = await supabase
+      const { data: simMessages } = await db
         .from('messages')
         .select('role, content, created_at')
         .eq('session_id', session_id)
@@ -357,7 +449,7 @@ Deno.serve(async (req) => {
         conversation_turns: userTurns,
       };
 
-      await supabase
+      await db
         .from('sessions')
         .update({
           candidate_summary: candidateSummary,
@@ -365,14 +457,14 @@ Deno.serve(async (req) => {
         })
         .eq('id', session_id);
 
-      const { data: application } = await supabase
+      const { data: application } = await db
         .from('candidate_applications')
         .select('id')
         .eq('conversation_session_id', session_id)
         .maybeSingle();
 
       if (application) {
-        await supabase
+        await db
           .from('candidate_applications')
           .update({ candidate_summary: candidateSummary })
           .eq('id', application.id);
@@ -388,7 +480,7 @@ Deno.serve(async (req) => {
       const candidateMessage = body.candidate_message;
       if (!candidateMessage) throw new Error('candidate_message is required');
 
-      const { data: simMessages } = await supabase
+      const { data: simMessages } = await db
         .from('messages')
         .select('role, content')
         .eq('session_id', session_id)
@@ -402,14 +494,12 @@ Deno.serve(async (req) => {
       const agentCount = (simMessages ?? []).filter((m) => m.role === 'agent').length;
       const position = `Message ${agentCount + 1} of ${strategy.sequence_length ?? 3}`;
 
-      const [candidateAnalysis, strategyCheck] = await Promise.all([
-        analyzeCandidate(candidateMessage, history),
-        checkStrategy(
-          JSON.stringify({ message: candidateMessage }),
-          strategy,
-          position,
-        ),
-      ]);
+      const candidateAnalysis = await analyzeCandidate(candidateMessage, history);
+      const strategyCheck = await checkStrategy(
+        JSON.stringify(candidateAnalysis),
+        strategy,
+        position,
+      );
 
       const payload: Record<string, unknown> = {
         candidate_analysis: candidateAnalysis,
@@ -428,7 +518,7 @@ Deno.serve(async (req) => {
     const candidateMessage = body.candidate_message;
     if (!candidateMessage) throw new Error('candidate_message is required');
 
-    const { data: simMessages } = await supabase
+    const { data: simMessages } = await db
       .from('messages')
       .select('role, content')
       .eq('session_id', session_id)
@@ -447,18 +537,15 @@ Deno.serve(async (req) => {
       | Record<string, unknown>
       | undefined;
 
-    const [candidateAnalysis, strategyCheck, candidateProfile] = await Promise.all([
-      preAnalysis
-        ? Promise.resolve(preAnalysis)
-        : analyzeCandidate(candidateMessage, history),
+    const candidateAnalysis = preAnalysis
+      ? preAnalysis
+      : await analyzeCandidate(candidateMessage, history);
+
+    const [strategyCheck, candidateProfile] = await Promise.all([
       preStrategyCheck
         ? Promise.resolve(preStrategyCheck)
-        : checkStrategy(
-            JSON.stringify({ message: candidateMessage }),
-            strategy,
-            position,
-          ),
-      loadCandidateProfileText(supabase, session_id),
+        : checkStrategy(JSON.stringify(candidateAnalysis), strategy, position),
+      loadCandidateProfileText(db, session_id),
     ]);
 
     const generated = await generateResponse(
@@ -471,7 +558,7 @@ Deno.serve(async (req) => {
       candidateProfile,
     );
 
-    await supabase.from('messages').insert([
+    await db.from('messages').insert([
       {
         session_id,
         phase: 'simulation',
