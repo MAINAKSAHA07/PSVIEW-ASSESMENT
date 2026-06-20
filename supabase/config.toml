@@ -1,0 +1,17 @@
+[project]
+id = "agentforge"
+
+[api]
+enabled = true
+
+[auth]
+enabled = true
+
+[functions.configure]
+verify_jwt = true
+
+[functions.synthesize]
+verify_jwt = true
+
+[functions.simulate]
+verify_jwt = true
