@@ -21,10 +21,9 @@ export function ApplicationsList({
         .map((app) => {
           const session = sessions.find((s) => s.id === app.session_id);
           const match =
-            app.match_score ??
-            (app.candidate && session
+            app.candidate && session
               ? computeRoleMatch(app.candidate, session)
-              : null);
+              : app.match_score ?? null;
           return { app, session, match };
         })
         .sort(
