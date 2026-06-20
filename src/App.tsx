@@ -31,10 +31,21 @@ function AppShell() {
   }
 
   if (needsRoleSelection) {
-    return <RoleSelector />;
+    return (
+      <Routes>
+        <Route path="*" element={<RoleSelector />} />
+      </Routes>
+    );
   }
 
-  const role = profile?.role ?? 'employer';
+  const role = profile?.role;
+  if (!role) {
+    return (
+      <Routes>
+        <Route path="*" element={<RoleSelector />} />
+      </Routes>
+    );
+  }
 
   return (
     <SessionProvider>

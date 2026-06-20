@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { fetchProfile, upsertProfile, setUserRole } from '../lib/api';
+import { fetchProfile, upsertProfile } from '../lib/api';
 import type { Profile, UserRole } from '../lib/types';
 import { useAuthContext } from './AuthContext';
 
@@ -62,10 +62,23 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const selectRole = useCallback(
     async (role: UserRole) => {
       if (!user) return;
-      const updated = await setUserRole(user.id, role);
+      if (role === 'admin') return;
+      const updated = await upsertProfile(user.id, {
+        role,
+        full_name:
+          profile?.full_name ??
+          (user.user_metadata?.full_name as string) ??
+          (user.user_metadata?.name as string) ??
+          null,
+        email: profile?.email ?? user.email ?? null,
+        avatar_url:
+          profile?.avatar_url ??
+          (user.user_metadata?.avatar_url as string) ??
+          null,
+      });
       setProfile(updated);
     },
-    [user],
+    [user, profile],
   );
 
   const updateProfile = useCallback(
@@ -77,7 +90,13 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     [user],
   );
 
-  const needsRoleSelection = Boolean(user && profile && !profile.role);
+  const needsRoleSelection = Boolean(
+    user &&
+      !profileLoading &&
+      profile?.role !== 'admin' &&
+      profile?.role !== 'employer' &&
+      profile?.role !== 'candidate',
+  );
   const needsCandidateOnboarding = Boolean(
     user &&
       profile?.role === 'candidate' &&

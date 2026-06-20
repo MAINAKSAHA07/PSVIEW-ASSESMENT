@@ -1,10 +1,31 @@
+import { useEffect, useState } from 'react';
 import { APP_NAME } from '../lib/constants';
 import { GoogleSignInButton } from '../components/auth/GoogleSignInButton';
 import { AppLogo, IconMoon, IconSun } from '../components/ui/Icons';
 import { useTheme } from '../context/ThemeContext';
 
+function getAuthErrorFromUrl(): string | null {
+  const search = new URLSearchParams(window.location.search);
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  return (
+    search.get('error_description') ??
+    hash.get('error_description') ??
+    search.get('error') ??
+    hash.get('error')
+  );
+}
+
 export function Landing() {
   const { isDark, toggleTheme } = useTheme();
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const message = getAuthErrorFromUrl();
+    if (message) {
+      setAuthError(decodeURIComponent(message.replace(/\+/g, ' ')));
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   return (
     <div className="flex min-h-screen flex-col bg-app">
@@ -31,6 +52,11 @@ export function Landing() {
           Configure an autonomous AI agent that engages candidates with your
           company&apos;s personality.
         </p>
+        {authError && (
+          <p className="mt-6 max-w-lg rounded-lg border border-err/30 bg-err/10 px-4 py-3 text-sm text-err">
+            Sign in failed: {authError}
+          </p>
+        )}
         <div className="mt-10">
           <GoogleSignInButton />
         </div>
