@@ -40,10 +40,12 @@ export function Main() {
       )}
       {phase === 'synthesizing' && <SynthesisProgress />}
       {phase === 'ready' && session && (
-        <div className="mx-auto max-w-6xl overflow-y-auto px-6 py-8">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <AgentRevealCard />
-            <StrategyPlanCard />
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-6xl px-6 py-8">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <AgentRevealCard />
+              <StrategyPlanCard />
+            </div>
           </div>
         </div>
       )}

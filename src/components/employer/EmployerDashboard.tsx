@@ -34,14 +34,15 @@ export function EmployerDashboard() {
 
   if (loading) {
     return (
-      <div className="flex flex-1 items-center justify-center p-8">
+      <div className="flex min-h-0 flex-1 items-center justify-center p-8">
         <div className="h-8 w-8 animate-pulse rounded-full bg-teal/30" />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-4xl flex-1 overflow-y-auto p-6">
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto max-w-4xl p-6">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="font-serif text-2xl text-fg-primary">Your agents</h1>
         <Link
@@ -66,6 +67,7 @@ export function EmployerDashboard() {
 
       <h2 className="mb-4 font-serif text-xl text-fg-primary">Applications</h2>
       <ApplicationsList applications={applications} sessions={sessions} />
+      </div>
     </div>
   );
 }
