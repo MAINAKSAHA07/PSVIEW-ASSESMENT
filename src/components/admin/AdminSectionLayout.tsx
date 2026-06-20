@@ -12,7 +12,7 @@ export function AdminSectionLayout({
   children,
 }: AdminSectionLayoutProps) {
   return (
-    <div className="mx-auto max-w-5xl flex-1 overflow-y-auto p-6">
+    <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col overflow-y-auto p-4 sm:p-6">
       <Link
         to="/app"
         className="inline-flex items-center text-sm text-teal hover:underline"

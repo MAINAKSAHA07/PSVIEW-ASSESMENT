@@ -66,6 +66,7 @@ html.dark {
   body {
     min-height: 100vh;
     background-color: var(--bg-primary);
+    overflow-x: hidden;
   }
 
   #root {

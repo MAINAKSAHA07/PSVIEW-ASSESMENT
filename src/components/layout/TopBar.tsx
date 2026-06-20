@@ -19,21 +19,23 @@ export function TopBar() {
 
   return (
     <>
-      <header className="flex items-center justify-between border-b border-line bg-app px-4 py-3">
-        <div className="flex items-center gap-3">
+      <header className="flex items-center justify-between gap-2 border-b border-line bg-app px-3 py-3 sm:px-4">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <AppLogo />
-          <span className="font-serif text-lg text-fg-primary">{APP_NAME}</span>
+          <span className="truncate font-serif text-base text-fg-primary sm:text-lg">
+            {APP_NAME}
+          </span>
           {companyName && (
-            <span className="hidden rounded-md bg-app-raised px-2 py-0.5 text-xs text-fg-secondary sm:inline">
+            <span className="hidden max-w-[8rem] truncate rounded-md bg-app-raised px-2 py-0.5 text-xs text-fg-secondary md:inline lg:max-w-[12rem]">
               {companyName}
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-3">
           <Link
             to="/app"
-            className={`rounded-lg px-3 py-1.5 text-xs transition ${
+            className={`rounded-lg px-2 py-1.5 text-[11px] sm:px-3 sm:text-xs transition ${
               !location.pathname.includes('dashboard')
                 ? 'bg-coral/10 text-coral'
                 : 'text-fg-secondary hover:text-teal'
@@ -43,7 +45,7 @@ export function TopBar() {
           </Link>
           <Link
             to="/app/dashboard"
-            className={`rounded-lg px-3 py-1.5 text-xs transition ${
+            className={`rounded-lg px-2 py-1.5 text-[11px] sm:px-3 sm:text-xs transition ${
               location.pathname.includes('dashboard')
                 ? 'bg-teal/10 text-teal'
                 : 'text-fg-secondary hover:text-teal'
@@ -54,7 +56,7 @@ export function TopBar() {
           <button
             type="button"
             onClick={() => setShowIntegrations(true)}
-            className="rounded-lg border border-line px-3 py-1.5 text-xs text-fg-secondary transition hover:border-teal hover:text-teal"
+            className="hidden rounded-lg border border-line px-3 py-1.5 text-xs text-fg-secondary transition hover:border-teal hover:text-teal sm:inline-block"
           >
             Integrations
           </button>
@@ -80,7 +82,7 @@ export function TopBar() {
           <button
             type="button"
             onClick={() => signOut()}
-            className="text-xs text-fg-tertiary hover:text-fg-secondary"
+            className="text-[11px] text-fg-tertiary hover:text-fg-secondary sm:text-xs"
           >
             Sign out
           </button>

@@ -65,12 +65,12 @@ export function EmployerDashboard() {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-4xl p-6">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="font-serif text-2xl text-fg-primary">Your agents</h1>
+      <div className="mx-auto max-w-4xl p-4 sm:p-6">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="font-serif text-xl text-fg-primary sm:text-2xl">Your agents</h1>
           <Link
             to="/app?new=1"
-            className="rounded-lg bg-coral px-4 py-2 text-sm font-medium text-white hover:bg-coral-dark"
+            className="inline-flex justify-center rounded-lg bg-coral px-4 py-2 text-sm font-medium text-white hover:bg-coral-dark"
           >
             Configure new agent
           </Link>

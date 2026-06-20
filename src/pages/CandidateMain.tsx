@@ -7,13 +7,15 @@ export function CandidateMain() {
   const { needsCandidateOnboarding } = useProfileContext();
 
   return (
-    <div className="flex min-h-screen flex-col bg-app">
+    <div className="flex h-screen flex-col overflow-hidden bg-app">
       <SimpleTopBar />
-      {needsCandidateOnboarding ? (
-        <CandidateOnboarding />
-      ) : (
-        <CandidateDashboard />
-      )}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {needsCandidateOnboarding ? (
+          <CandidateOnboarding />
+        ) : (
+          <CandidateDashboard />
+        )}
+      </div>
     </div>
   );
 }

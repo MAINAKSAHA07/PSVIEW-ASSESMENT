@@ -45,7 +45,7 @@ export function Landing() {
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center px-6 pb-24 text-center">
-        <h1 className="max-w-2xl font-serif text-5xl leading-tight text-fg-primary md:text-6xl">
+        <h1 className="max-w-2xl font-serif text-4xl leading-tight text-fg-primary sm:text-5xl md:text-6xl">
           Build your recruiting agent
         </h1>
         <p className="mt-4 max-w-lg text-lg text-fg-secondary">

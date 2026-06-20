@@ -288,47 +288,27 @@ export async function startCandidateConversation(
 
   const matchScore = computeRoleMatch(profile, published as Session);
 
-  const { data: convSession, error: convErr } = await supabase
-    .from('sessions')
-    .insert({
-      user_id: published.user_id,
-      status: 'simulating',
-      config_source: published.config_source,
-      company_profile: published.company_profile,
-      agent_persona: published.agent_persona,
-      agent_strategy: published.agent_strategy,
-      parent_session_id: publishedSessionId,
-    })
-    .select()
-    .single();
+  const { data: application, error: rpcErr } = await supabase.rpc(
+    'start_candidate_conversation',
+    {
+      p_published_session_id: publishedSessionId,
+      p_match_score: matchScore,
+    },
+  );
 
-  if (convErr) throw new Error(convErr.message);
+  if (rpcErr) throw new Error(rpcErr.message);
+  if (!application || typeof application !== 'object') {
+    throw new Error('Failed to start conversation');
+  }
 
-  const { data: application, error: appErr } = await supabase
-    .from('candidate_applications')
-    .insert({
-      candidate_id: candidateId,
-      session_id: publishedSessionId,
-      conversation_session_id: convSession.id,
-      status: 'agent_engaged',
-      match_score: matchScore,
-    })
-    .select()
-    .single();
+  const appRow = application as Record<string, unknown>;
+  const convSessionId = appRow.conversation_session_id as string | undefined;
 
-  if (appErr) throw new Error(appErr.message);
+  if (convSessionId) {
+    await simulateReset(convSessionId);
+  }
 
-  await simulateReset(convSession.id);
-
-  await supabase
-    .from('sessions')
-    .update({
-      application_count: (published.application_count ?? 0) + 1,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', publishedSessionId);
-
-  return mapApplication(application as Record<string, unknown>);
+  return mapApplication(appRow);
 }
 
 export async function fetchAdminStats() {

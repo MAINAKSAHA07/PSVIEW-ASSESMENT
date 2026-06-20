@@ -15,8 +15,8 @@ export function AdminDashboard() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl flex-1 overflow-y-auto p-6">
-      <h1 className="mb-6 font-serif text-2xl text-fg-primary">AgentForge Admin</h1>
+    <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col overflow-y-auto p-4 sm:p-6">
+      <h1 className="mb-6 font-serif text-xl text-fg-primary sm:text-2xl">AgentForge Admin</h1>
       {error && <p className="mb-4 text-sm text-err">{error}</p>}
 
       {stats && (

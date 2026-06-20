@@ -32,16 +32,18 @@ export function CandidateDashboard() {
 
   if (activeApp) {
     return (
-      <AgentConversation
-        application={activeApp}
-        onBack={() => setActiveApp(null)}
-      />
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <AgentConversation
+          application={activeApp}
+          onBack={() => setActiveApp(null)}
+        />
+      </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl flex-1 overflow-y-auto p-6">
-      <div className="mb-6 flex gap-2">
+    <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col overflow-y-auto p-4 sm:p-6">
+      <div className="mb-6 flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => setTab('browse')}
