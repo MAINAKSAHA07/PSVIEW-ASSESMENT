@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   simulateAnalyze,
   simulateReply,
@@ -12,7 +12,9 @@ import {
 import { useSessionContext } from '../../context/SessionContext';
 import { useMessages } from '../../hooks/useMessages';
 import { useSession } from '../../hooks/useSession';
+import { useVoice } from '../../hooks/useVoice';
 import { PublishButton } from '../employer/PublishButton';
+import { VoiceConfigInput } from '../config/VoiceConfigInput';
 import { CandidateSummaryCard } from '../shared/CandidateSummaryCard';
 import { ConversationThread } from './ConversationThread';
 import { QuickReplySuggestions } from './QuickReplySuggestions';
@@ -27,8 +29,21 @@ export function SimulationView() {
     useSessionContext();
   const { simulationMessages, addMessage, reloadMessages } = useMessages();
   const { startNewSession } = useSession();
+  const {
+    speak,
+    startAutoListen,
+    stopListening,
+    unlockAudio,
+    isListening,
+    isSpeaking,
+    interimTranscript,
+    isSupported,
+  } = useVoice();
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const [text, setText] = useState('');
+  const lastSpokenIdRef = useRef<string | null>(null);
+  const handleSendRef = useRef<(text: string) => Promise<void>>(async () => undefined);
+  const [inputMode, setInputMode] = useState<'voice' | 'text'>('voice');
+  const [voiceReady, setVoiceReady] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>('chat');
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
   const [reasoning, setReasoning] = useState<ReasoningTrace | null>(() => {
@@ -60,12 +75,85 @@ export function SimulationView() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [simulationMessages, summary]);
 
+  const openListenWindow = useCallback(() => {
+    if (inputMode !== 'voice' || !isSupported || isLoading || !voiceReady) return;
+    startAutoListen({
+      onFinal: (spoken) => {
+        void handleSendRef.current(spoken);
+      },
+    });
+  }, [inputMode, isSupported, isLoading, voiceReady, startAutoListen]);
+
+  const speakLastAgentMessage = useCallback(async () => {
+    const lastAgent = [...simulationMessages]
+      .reverse()
+      .find((m) => m.role === 'agent');
+    if (!lastAgent || lastAgent.id === lastSpokenIdRef.current) return;
+    lastSpokenIdRef.current = lastAgent.id;
+    await speak(lastAgent.content);
+    if (inputMode === 'voice' && !isLoading && voiceReady) {
+      openListenWindow();
+    }
+  }, [simulationMessages, speak, inputMode, isLoading, voiceReady, openListenWindow]);
+
+  useEffect(() => {
+    if (inputMode !== 'voice' || !voiceReady || isLoading) return;
+    void speakLastAgentMessage();
+  }, [simulationMessages, inputMode, voiceReady, isLoading, speakLastAgentMessage]);
+
+  useEffect(() => {
+    if (isLoading) stopListening();
+  }, [isLoading, stopListening]);
+
+  const handleInputModeChange = useCallback(
+    (mode: 'voice' | 'text') => {
+      setInputMode(mode);
+      if (mode === 'text') {
+        stopListening();
+        return;
+      }
+      unlockAudio();
+      setVoiceReady(true);
+    },
+    [stopListening, unlockAudio],
+  );
+
+  const handleStartListening = useCallback(() => {
+    unlockAudio();
+    setVoiceReady(true);
+    if (inputMode !== 'voice' || !isSupported || isLoading) return;
+
+    void (async () => {
+      const lastAgent = [...simulationMessages]
+        .reverse()
+        .find((m) => m.role === 'agent');
+      if (lastAgent && lastAgent.id !== lastSpokenIdRef.current) {
+        lastSpokenIdRef.current = lastAgent.id;
+        await speak(lastAgent.content);
+      }
+      startAutoListen({
+        onFinal: (spoken) => {
+          void handleSendRef.current(spoken);
+        },
+      });
+    })();
+  }, [
+    unlockAudio,
+    inputMode,
+    isSupported,
+    isLoading,
+    simulationMessages,
+    speak,
+    startAutoListen,
+  ]);
+
   const userTurns = simulationMessages.filter((m) => m.role === 'user').length;
   const agentName = session?.agent_persona?.name ?? 'Agent';
 
   const handleSend = async (message: string) => {
     if (!session || !message.trim()) return;
 
+    stopListening();
     const userMsg: Message = {
       id: crypto.randomUUID(),
       session_id: session.id,
@@ -76,7 +164,6 @@ export function SimulationView() {
       reasoning: null,
     };
     addMessage(userMsg);
-    setText('');
     setAnalyzing(true);
     setReasoning(null);
     setLoading(true);
@@ -116,6 +203,8 @@ export function SimulationView() {
       setLoading(false);
     }
   };
+
+  handleSendRef.current = handleSend;
 
   const handleSummarize = async () => {
     if (!session) return;
@@ -210,30 +299,26 @@ export function SimulationView() {
         </div>
       )}
       <QuickReplySuggestions onSelect={handleSend} disabled={isLoading} />
-      <div className="shrink-0 border-t border-line p-4">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void handleSend(text);
-          }}
-          className="flex gap-2"
-        >
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Reply as candidate..."
-            rows={1}
-            disabled={isLoading}
-            className="flex-1 resize-none rounded-lg border border-line bg-app-card px-3 py-2 text-sm text-fg-primary placeholder:text-fg-tertiary focus:border-teal focus:outline-none disabled:opacity-50"
-          />
-          <button
-            type="submit"
-            disabled={!text.trim() || isLoading}
-            className="rounded-lg bg-coral px-4 py-2 text-sm font-medium text-white hover:bg-coral-dark disabled:opacity-50"
-          >
-            Send
-          </button>
-        </form>
+      <div className="shrink-0 border-t border-line bg-app">
+        {inputMode === 'voice' && isSupported && !voiceReady && (
+          <p className="border-b border-teal/20 bg-teal/10 px-4 py-2 text-center text-xs text-teal">
+            Tap the microphone to enable voice. Speak as the candidate after the agent
+            reads each reply.
+          </p>
+        )}
+        <VoiceConfigInput
+          onSend={handleSend}
+          disabled={isLoading}
+          inputMode={inputMode}
+          onInputModeChange={handleInputModeChange}
+          isListening={isListening}
+          isSpeaking={isSpeaking}
+          interimTranscript={interimTranscript}
+          isSupported={isSupported}
+          onStartListening={handleStartListening}
+          onStopListening={stopListening}
+          placeholder="Reply as candidate..."
+        />
       </div>
     </div>
   );
@@ -250,7 +335,7 @@ export function SimulationView() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="shrink-0 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-xs text-amber-800 dark:text-amber-300">
-        Preview mode — no emails or LinkedIn messages are sent. Type candidate replies below to test how your agent responds.
+        Preview mode — no emails or LinkedIn messages are sent. Use voice or text below to reply as the candidate and test how your agent responds.
       </div>
 
       <div className="flex shrink-0 border-b border-line lg:hidden">

@@ -123,6 +123,34 @@ type AgentActionDecision = {
   rationale: string;
 };
 
+function normalizeAgentAction(
+  action: AgentActionDecision,
+  candidateAnalysis: Record<string, unknown>,
+): AgentActionDecision {
+  const intent = String(candidateAnalysis.intent ?? '');
+  const clarity = String(candidateAnalysis.message_clarity ?? '');
+  const offTopic =
+    intent === 'off_topic' ||
+    intent === 'testing_agent' ||
+    intent === 'vague_question' ||
+    clarity === 'off_topic' ||
+    clarity === 'playful' ||
+    clarity === 'vague';
+
+  if (
+    offTopic &&
+    (action.action === 'graceful_close' || action.action === 'reply')
+  ) {
+    return {
+      action: 'redirect_to_role',
+      goal: 'Acknowledge briefly and redirect to one concrete role or company detail.',
+      rationale:
+        'Message was off-topic or vague; keep the conversation on the role.',
+    };
+  }
+  return action;
+}
+
 async function decideAgentAction(params: {
   profile: CompanyProfile;
   persona: AgentPersona;
@@ -162,7 +190,7 @@ async function decideAgentAction(params: {
       'Decide next agent action.',
       true,
     ),
-  );
+  ).then((action) => normalizeAgentAction(action, params.candidateAnalysis));
 }
 
 async function isCandidateConversationSession(
@@ -328,6 +356,13 @@ function buildStrategyAdjustments(
   const isExploratoryInterest =
     (intent === 'expressing_interest' || intent === 'asking_questions') &&
     actionRequested === 'none';
+  const isOffTopicOrVague =
+    intent === 'off_topic' ||
+    intent === 'testing_agent' ||
+    intent === 'vague_question' ||
+    String(candidateAnalysis.message_clarity ?? '') === 'off_topic' ||
+    String(candidateAnalysis.message_clarity ?? '') === 'playful' ||
+    String(candidateAnalysis.message_clarity ?? '') === 'vague';
 
   let strategyAdjustments = 'No adjustment needed';
   if (strategyCheck.adjustment_needed) {
@@ -346,6 +381,9 @@ function buildStrategyAdjustments(
   if (callBooked) {
     strategyAdjustments +=
       ' CALL ALREADY BOOKED: Answer questions directly. Do NOT mention scheduling, calls, invites, or "the hiring manager on the call" unless rescheduling.';
+  } else if (isOffTopicOrVague) {
+    strategyAdjustments +=
+      ' OFF-TOPIC OR VAGUE: Brief ack if natural, then redirect to ONE company/role fact from COMPANY FACTS. Do not invent technical topics. Do not end the conversation. Max 2 sentences.';
   } else if (isSubstantiveQuestion || isExploratoryInterest) {
     strategyAdjustments +=
       ' ANSWER FULLY from COMPANY FACTS then STOP. Do NOT mention calls, scheduling, or the hiring manager.';
@@ -377,6 +415,8 @@ function buildStrategyAdjustments(
 
 const ACTION_INSTRUCTIONS: Record<string, string> = {
   reply: 'AGENT DECISION (free-running): Continue toward the current strategy goal in a natural way.',
+  redirect_to_role:
+    'AGENT DECISION (free-running): Brief warm ack only if needed. Redirect to ONE concrete detail about the role or company from COMPANY FACTS. Do not invent topics. Do not close the conversation. Max 2 sentences. No scheduling mention.',
   answer_directly:
     'AGENT DECISION (free-running): Answer fully from COMPANY FACTS. Do not append scheduling or call offers.',
   facilitate_scheduling:
@@ -411,6 +451,9 @@ function pickStrategyStep(
   }
   if (agentAction?.action === 'build_interest') {
     return strategy.steps[0] ?? strategy.steps[lastIndex];
+  }
+  if (agentAction?.action === 'redirect_to_role') {
+    return strategy.steps[Math.min(agentCount, lastIndex)] ?? strategy.steps[0];
   }
   if (agentAction?.action === 'graceful_close') {
     return strategy.steps[lastIndex] ?? strategy.steps[0];

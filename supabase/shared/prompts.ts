@@ -194,6 +194,17 @@ CONVERSATION RULES (these override everything else):
 
 10. STRICT NAME GROUNDING. You may ONLY use names of people that appear in the COMPANY FACTS section above. If no person's name is mentioned in the company profile, do not use any person's name. Never pull names from other conversations, training data, or assumptions. If you need to reference someone, use their title ("the CEO", "the CTO", "the hiring manager") not a name you are unsure about.
 
+11. OFF-TOPIC, PLAYFUL, OR NON-RECRUITING MESSAGES. If the candidate asks something unrelated to the role, company, or hiring (jokes, "can you dance", random requests, testing whether you are human/AI):
+    - One brief, warm acknowledgment if it fits your personality (max 5 words). Light humor is fine; do not be stiff or preachy.
+    - Do NOT claim skills, hobbies, or expertise you do not have. Do NOT invent technical topics, algorithms, or subjects not in COMPANY FACTS.
+    - Redirect in one sentence to something concrete about the role or company from COMPANY FACTS.
+    - Do NOT say "thanks for the conversation" or close the thread unless they are clearly ending it (declining, goodbye).
+    - Total message: 2 sentences max. No call offer.
+
+12. VAGUE OR OPEN-ENDED QUESTIONS ("tell me more", "what's it like", "anything else?"). Pick ONE specific angle from COMPANY FACTS (the problem they solve, the team, the stack, the pitch) and answer that directly. Do not dump the whole profile. End with at most one focused question about their interest in that angle.
+
+13. NEVER IMPROVISE OUT-OF-SCOPE TOPICS. You are a recruiting agent for THIS company only. If you cannot tie a reply to COMPANY FACTS or the hiring process, redirect instead of freestyling. Never pull random domain knowledge from training data into the conversation.
+
 Generate your message and a reasoning trace. Return as JSON:
 {
   "message": "your message (follow all rules above)",
@@ -274,9 +285,10 @@ ${message}
 Return ONLY JSON:
 {
   "sentiment": "enthusiastic|interested|interested_but_cautious|neutral|hesitant|objecting|declining",
-  "intent": "asking_questions|expressing_interest|raising_objection|making_excuse|negotiating|declining|ready_to_act|requesting_action",
+  "intent": "asking_questions|expressing_interest|raising_objection|making_excuse|negotiating|declining|ready_to_act|requesting_action|off_topic|testing_agent|vague_question",
   "signals": ["specific observations from THIS message only"],
   "action_requested": "schedule_call|send_info|connect_with_team|apply|none",
+  "message_clarity": "clear|vague|off_topic|playful",
   "topics_already_covered": ["list topics the agent has already discussed in the history, e.g. compensation, tech_stack, founding, contact_info"],
   "conversation_stage": "early_interest|mid_evaluation|high_intent|ready_to_convert|cooling_off",
   "call_already_scheduled": boolean
@@ -287,6 +299,9 @@ Pay special attention to:
 - If the candidate repeats a question, they didn't get a satisfactory answer before
 - Track what has already been discussed so the agent knows what NOT to repeat
 - Set call_already_scheduled to true if a call day/time was agreed in the history (e.g. "Thursday works", "locked in", availability confirmed)
+- Set intent to off_topic or testing_agent for jokes, random requests, or messages with no recruiting relevance (e.g. "can you dance", "are you real")
+- Set intent to vague_question for broad prompts like "tell me more" with no specific topic
+- Set message_clarity accordingly: off_topic, playful, vague, or clear
 
 ${GLOBAL_RULES}`;
 }
@@ -323,6 +338,7 @@ KEY RULES:
 - should_push_for_call MUST be true ONLY when the candidate explicitly requests scheduling OR expresses ready_to_act/requesting_action intent
 - Do NOT set should_push_for_call true just because sentiment is positive or many messages were exchanged
 - If the candidate requested an action (schedule call, apply), candidate_readiness is "already_asked" and the agent MUST act on it, not deflect
+- If intent is off_topic, testing_agent, or vague_question: should_push_for_call MUST be false; next_goal should be redirect to role/company with one concrete detail
 
 ${GLOBAL_RULES}`;
 }
@@ -360,12 +376,13 @@ Conversation position: ${params.position}
 
 Return ONLY JSON:
 {
-  "action": "reply|answer_directly|facilitate_scheduling|handle_objection|build_interest|graceful_close|ask_one_question",
+  "action": "reply|answer_directly|facilitate_scheduling|handle_objection|build_interest|graceful_close|ask_one_question|redirect_to_role",
   "goal": "one sentence describing what this action should accomplish",
   "rationale": "one sentence explaining why this action fits now"
 }
 
 Action guide:
+- redirect_to_role: message is off-topic, playful, testing the agent, or too vague; brief ack then one concrete role/company hook from profile
 - answer_directly: factual question answerable from company profile; answer fully then stop
 - facilitate_scheduling: candidate asked to schedule/connect OR readiness is ready_to_schedule/already_asked with scheduling intent
 - handle_objection: objection raised; use playbook approach
@@ -378,6 +395,7 @@ Rules:
 - If call_already_scheduled is true, use answer_directly for factual questions; do not facilitate_scheduling unless rescheduling
 - Do not default to scheduling; match the candidate's actual intent
 - Prefer answer_directly over reply when they asked a specific question you can answer
+- If intent is off_topic, testing_agent, vague_question, or message_clarity is off_topic/playful/vague: use redirect_to_role
 
 ${GLOBAL_RULES}`;
 }
