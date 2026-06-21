@@ -32,6 +32,7 @@ export function AgentConversation({ application, onBack }: AgentConversationProp
     speak,
     startAutoListen,
     stopListening,
+    unlockAudio,
     isListening,
     isSpeaking,
     interimTranscript,
@@ -44,6 +45,7 @@ export function AgentConversation({ application, onBack }: AgentConversationProp
   const [summary, setSummary] = useState(application.candidate_summary);
   const [generatingSummary, setGeneratingSummary] = useState(false);
   const [inputMode, setInputMode] = useState<'voice' | 'text'>('voice');
+  const [voiceReady, setVoiceReady] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [publishedSession, setPublishedSession] = useState<Session | null>(null);
   const [match, setMatch] = useState<RoleMatch | null>(application.match_score);
@@ -110,35 +112,69 @@ export function AgentConversation({ application, onBack }: AgentConversationProp
   }, [messages, summary, match, uploadStatus]);
 
   const openListenWindow = useCallback(() => {
-    if (inputMode !== 'voice' || !isSupported || loading) return;
+    if (inputMode !== 'voice' || !isSupported || loading || !voiceReady) return;
     startAutoListen({
       onFinal: (spoken) => {
         void handleSendRef.current(spoken);
       },
     });
-  }, [inputMode, isSupported, loading, startAutoListen]);
+  }, [inputMode, isSupported, loading, voiceReady, startAutoListen]);
 
-  useEffect(() => {
+  const speakLastAgentMessage = useCallback(async () => {
     const lastAgent = [...messages].reverse().find((m) => m.role === 'agent');
     if (!lastAgent || lastAgent.id === lastSpokenIdRef.current) return;
     lastSpokenIdRef.current = lastAgent.id;
-
-    let cancelled = false;
-
-    void (async () => {
-      await speak(lastAgent.content);
-      if (cancelled || inputMode !== 'voice' || loading) return;
+    await speak(lastAgent.content);
+    if (inputMode === 'voice' && !loading) {
       openListenWindow();
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    }
   }, [messages, speak, inputMode, loading, openListenWindow]);
+
+  useEffect(() => {
+    if (inputMode !== 'voice' || !voiceReady || loading) return;
+    void speakLastAgentMessage();
+  }, [messages, inputMode, voiceReady, loading, speakLastAgentMessage]);
 
   useEffect(() => {
     if (loading) stopListening();
   }, [loading, stopListening]);
+
+  const enableVoice = useCallback(() => {
+    unlockAudio();
+    setVoiceReady(true);
+  }, [unlockAudio]);
+
+  const handleStartListening = useCallback(() => {
+    unlockAudio();
+    setVoiceReady(true);
+
+    if (inputMode !== 'voice' || !isSupported || loading) return;
+
+    void (async () => {
+      const lastAgent = [...messages].reverse().find((m) => m.role === 'agent');
+      if (lastAgent && lastAgent.id !== lastSpokenIdRef.current) {
+        lastSpokenIdRef.current = lastAgent.id;
+        await speak(lastAgent.content);
+      }
+      startAutoListen({
+        onFinal: (spoken) => {
+          void handleSendRef.current(spoken);
+        },
+      });
+    })();
+  }, [unlockAudio, inputMode, isSupported, loading, messages, speak, startAutoListen]);
+
+  const handleInputModeChange = useCallback(
+    (mode: 'voice' | 'text') => {
+      setInputMode(mode);
+      if (mode === 'text') {
+        stopListening();
+        return;
+      }
+      enableVoice();
+    },
+    [enableVoice, stopListening],
+  );
 
   const handleSend = async (message: string) => {
     if (!sessionId || !message.trim()) return;
@@ -229,7 +265,7 @@ export function AgentConversation({ application, onBack }: AgentConversationProp
     summary.interest_level;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="shrink-0 border-b border-line px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <button
@@ -254,7 +290,7 @@ export function AgentConversation({ application, onBack }: AgentConversationProp
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
         <ConversationThread messages={messages} />
         {hasSummary && (
           <div className="px-4 pb-4">
@@ -264,38 +300,45 @@ export function AgentConversation({ application, onBack }: AgentConversationProp
         <div ref={chatEndRef} />
       </div>
 
-      {error && <p className="px-4 text-sm text-err">{error}</p>}
-      {uploadStatus && !error && (
-        <p className="px-4 text-xs text-teal animate-pulse">{uploadStatus}</p>
-      )}
+      <div className="shrink-0 border-t border-line bg-app">
+        {error && <p className="px-4 pt-3 text-sm text-err">{error}</p>}
+        {uploadStatus && !error && (
+          <p className="px-4 pt-3 text-xs text-teal animate-pulse">{uploadStatus}</p>
+        )}
 
-      {userTurns >= 4 && !hasSummary && (
-        <div className="shrink-0 border-t border-line px-4 py-3">
-          <button
-            type="button"
-            onClick={handleSummarize}
-            disabled={generatingSummary || loading}
-            className="rounded-lg border border-teal px-4 py-2 text-xs font-medium text-teal hover:bg-teal/10 disabled:opacity-50"
-          >
-            {generatingSummary ? 'Generating...' : 'Generate summary'}
-          </button>
-        </div>
-      )}
+        {inputMode === 'voice' && isSupported && !voiceReady && (
+          <p className="border-b border-teal/20 bg-teal/10 px-4 py-2 text-center text-xs text-teal">
+            Tap the microphone below to enable voice. Browsers require a tap before audio and
+            the mic can start.
+          </p>
+        )}
 
-      <QuickReplySuggestions onSelect={handleSend} disabled={loading} />
+        {userTurns >= 4 && !hasSummary && (
+          <div className="border-b border-line px-4 py-3">
+            <button
+              type="button"
+              onClick={handleSummarize}
+              disabled={generatingSummary || loading}
+              className="rounded-lg border border-teal px-4 py-2 text-xs font-medium text-teal hover:bg-teal/10 disabled:opacity-50"
+            >
+              {generatingSummary ? 'Generating...' : 'Generate summary'}
+            </button>
+          </div>
+        )}
 
-      <div className="shrink-0">
+        <QuickReplySuggestions onSelect={handleSend} disabled={loading} />
+
         <VoiceConfigInput
           onSend={handleSend}
           disabled={loading}
           onFileSelect={handleResumeUpload}
           inputMode={inputMode}
-          onInputModeChange={setInputMode}
+          onInputModeChange={handleInputModeChange}
           isListening={isListening}
           isSpeaking={isSpeaking}
           interimTranscript={interimTranscript}
           isSupported={isSupported}
-          onStartListening={openListenWindow}
+          onStartListening={handleStartListening}
           onStopListening={stopListening}
           placeholder="Ask about the role..."
         />

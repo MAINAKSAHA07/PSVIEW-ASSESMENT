@@ -147,6 +147,11 @@ export interface ReasoningTrace {
   };
   message_rationale: string;
   strategy_position: string;
+  agent_action?: {
+    action: string;
+    goal: string;
+    rationale: string;
+  };
 }
 
 export interface CandidateAnalysis {

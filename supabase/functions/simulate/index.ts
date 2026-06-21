@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { callOpenAI, parseJSON, MODELS } from '../../shared/openai.ts';
 import {
+  agentActionPrompt,
   candidateAnalysisPrompt,
   candidateSummaryPrompt,
   messageGenerationPrompt,
@@ -116,6 +117,54 @@ async function checkStrategy(
   );
 }
 
+type AgentActionDecision = {
+  action: string;
+  goal: string;
+  rationale: string;
+};
+
+async function decideAgentAction(params: {
+  profile: CompanyProfile;
+  persona: AgentPersona;
+  strategy: AgentStrategy;
+  history: string;
+  candidateAnalysis: Record<string, unknown>;
+  strategyCheck: Record<string, unknown>;
+  position: string;
+}): Promise<AgentActionDecision> {
+  const raw = await callOpenAI(
+    MODELS.utility,
+    agentActionPrompt({
+      companyProfile: JSON.stringify(params.profile),
+      agentPersona: JSON.stringify(params.persona),
+      strategy: JSON.stringify(params.strategy),
+      history: params.history,
+      candidateAnalysis: JSON.stringify(params.candidateAnalysis),
+      strategyCheck: JSON.stringify(params.strategyCheck),
+      position: params.position,
+    }),
+    'Decide next agent action.',
+    true,
+  );
+
+  return parseJSON<AgentActionDecision>(raw, () =>
+    callOpenAI(
+      MODELS.utility,
+      agentActionPrompt({
+        companyProfile: JSON.stringify(params.profile),
+        agentPersona: JSON.stringify(params.persona),
+        strategy: JSON.stringify(params.strategy),
+        history: params.history,
+        candidateAnalysis: JSON.stringify(params.candidateAnalysis),
+        strategyCheck: JSON.stringify(params.strategyCheck),
+        position: params.position,
+      }) + '\nReturn ONLY valid JSON.',
+      'Decide next agent action.',
+      true,
+    ),
+  );
+}
+
 async function isCandidateConversationSession(
   supabase: ReturnType<typeof createClient>,
   session: { id: string; parent_session_id?: string | null },
@@ -145,6 +194,7 @@ function publicSimulatePayload(
   delete next.reasoning;
   delete next.candidate_analysis;
   delete next.strategy_check;
+  delete next.agent_action;
   return next;
 }
 
@@ -152,6 +202,7 @@ function buildPartialReasoning(
   candidateAnalysis: Record<string, unknown>,
   strategyCheck: Record<string, unknown>,
   position: string,
+  agentAction?: AgentActionDecision,
 ): ReasoningTrace {
   return {
     candidate_analysis: {
@@ -169,8 +220,11 @@ function buildPartialReasoning(
       vocabulary_compliance: true,
       notes: 'Generating response...',
     },
-    message_rationale: 'Crafting the next message...',
+    message_rationale: agentAction
+      ? `Next action: ${agentAction.action}. ${agentAction.goal}`
+      : 'Deciding next action...',
     strategy_position: position,
+    agent_action: agentAction,
   };
 }
 
@@ -321,6 +375,63 @@ function buildStrategyAdjustments(
   return strategyAdjustments;
 }
 
+const ACTION_INSTRUCTIONS: Record<string, string> = {
+  reply: 'AGENT DECISION (free-running): Continue toward the current strategy goal in a natural way.',
+  answer_directly:
+    'AGENT DECISION (free-running): Answer fully from COMPANY FACTS. Do not append scheduling or call offers.',
+  facilitate_scheduling:
+    'AGENT DECISION (free-running): Facilitate scheduling or connection. Propose a concrete next step. Do not claim an invite was sent.',
+  handle_objection:
+    'AGENT DECISION (free-running): Address the objection directly using company strengths and the playbook.',
+  build_interest:
+    'AGENT DECISION (free-running): Share specific compelling details about the role or company. One engaging follow-up question at most.',
+  graceful_close:
+    'AGENT DECISION (free-running): Close warmly. Thank them. Leave the door open. No pressure or scheduling push.',
+  ask_one_question:
+    'AGENT DECISION (free-running): Ask exactly ONE clarifying question. Keep the message under 3 sentences.',
+};
+
+function applyAgentActionAdjustments(
+  baseAdjustments: string,
+  agentAction: AgentActionDecision,
+): string {
+  const instruction =
+    ACTION_INSTRUCTIONS[agentAction.action] ?? ACTION_INSTRUCTIONS.reply;
+  return `${baseAdjustments} ${instruction} GOAL: ${agentAction.goal} RATIONALE: ${agentAction.rationale}`;
+}
+
+function pickStrategyStep(
+  strategy: AgentStrategy,
+  agentCount: number,
+  agentAction?: AgentActionDecision,
+) {
+  const lastIndex = Math.max(strategy.steps.length - 1, 0);
+  if (agentAction?.action === 'facilitate_scheduling') {
+    return strategy.steps[lastIndex] ?? strategy.steps[0];
+  }
+  if (agentAction?.action === 'build_interest') {
+    return strategy.steps[0] ?? strategy.steps[lastIndex];
+  }
+  if (agentAction?.action === 'graceful_close') {
+    return strategy.steps[lastIndex] ?? strategy.steps[0];
+  }
+  const stepIndex = Math.min(agentCount, lastIndex);
+  return strategy.steps[stepIndex];
+}
+
+function enrichReasoningWithAction(
+  reasoning: ReasoningTrace,
+  agentAction: AgentActionDecision,
+): ReasoningTrace {
+  return {
+    ...reasoning,
+    agent_action: agentAction,
+    message_rationale: reasoning.message_rationale
+      ? `${reasoning.message_rationale} (Action: ${agentAction.action})`
+      : `Action: ${agentAction.action}. ${agentAction.goal}`,
+  };
+}
+
 async function generateResponse(
   persona: AgentPersona,
   profile: CompanyProfile,
@@ -328,18 +439,22 @@ async function generateResponse(
   history: string,
   candidateAnalysis: Record<string, unknown>,
   strategyCheck: Record<string, unknown>,
+  agentAction: AgentActionDecision,
   candidateProfile?: string,
   candidateLatestMessage?: string,
 ) {
   const agentCount = history.split('\n').filter((l) => l.startsWith('agent:')).length;
-  const stepIndex = Math.min(agentCount, strategy.steps.length - 1);
-  const currentStep = strategy.steps[stepIndex];
+  const currentStep = pickStrategyStep(strategy, agentCount, agentAction);
 
-  const strategyAdjustments = buildStrategyAdjustments(
+  const baseAdjustments = buildStrategyAdjustments(
     strategy,
     candidateAnalysis,
     strategyCheck,
     history,
+  );
+  const strategyAdjustments = applyAgentActionAdjustments(
+    baseAdjustments,
+    agentAction,
   );
 
   const groundedHistory = buildGroundedHistory(history);
@@ -369,7 +484,10 @@ async function generateResponse(
       'Generate response JSON.',
       true,
     ),
-  );
+  ).then((generated) => ({
+    ...generated,
+    reasoning: enrichReasoningWithAction(generated.reasoning, agentAction),
+  }));
 }
 
 Deno.serve(async (req) => {
@@ -566,11 +684,26 @@ Deno.serve(async (req) => {
         strategy,
         position,
       );
+      const agentAction = await decideAgentAction({
+        profile,
+        persona,
+        strategy,
+        history: buildGroundedHistory(history),
+        candidateAnalysis,
+        strategyCheck,
+        position,
+      });
 
       const payload: Record<string, unknown> = {
         candidate_analysis: candidateAnalysis,
         strategy_check: strategyCheck,
-        reasoning: buildPartialReasoning(candidateAnalysis, strategyCheck, position),
+        agent_action: agentAction,
+        reasoning: buildPartialReasoning(
+          candidateAnalysis,
+          strategyCheck,
+          position,
+          agentAction,
+        ),
       };
 
       return new Response(
@@ -605,11 +738,21 @@ Deno.serve(async (req) => {
       ? preAnalysis
       : await analyzeCandidate(candidateMessage, history);
 
-    const [strategyCheck, candidateProfile] = await Promise.all([
-      preStrategyCheck
-        ? Promise.resolve(preStrategyCheck)
-        : checkStrategy(JSON.stringify(candidateAnalysis), strategy, position),
+    const resolvedStrategyCheck = preStrategyCheck
+      ? preStrategyCheck
+      : await checkStrategy(JSON.stringify(candidateAnalysis), strategy, position);
+
+    const [candidateProfile, agentAction] = await Promise.all([
       loadCandidateProfileText(db, session_id),
+      decideAgentAction({
+        profile,
+        persona,
+        strategy,
+        history: buildGroundedHistory(history),
+        candidateAnalysis,
+        strategyCheck: resolvedStrategyCheck,
+        position,
+      }),
     ]);
 
     const generated = await generateResponse(
@@ -618,7 +761,8 @@ Deno.serve(async (req) => {
       strategy,
       history,
       candidateAnalysis,
-      strategyCheck,
+      resolvedStrategyCheck,
+      agentAction,
       candidateProfile,
       candidateMessage,
     );
@@ -647,6 +791,7 @@ Deno.serve(async (req) => {
               agent_message: generated.message,
               reasoning: generated.reasoning,
               candidate_analysis: candidateAnalysis,
+              agent_action: agentAction,
             },
             hideReasoning,
           ),

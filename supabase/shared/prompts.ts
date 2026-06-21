@@ -327,6 +327,61 @@ KEY RULES:
 ${GLOBAL_RULES}`;
 }
 
+export function agentActionPrompt(params: {
+  companyProfile: string;
+  agentPersona: string;
+  strategy: string;
+  history: string;
+  candidateAnalysis: string;
+  strategyCheck: string;
+  position: string;
+}): string {
+  return `You are the autonomous control layer for a recruiting agent. Decide the SINGLE next action the agent should take. You are choosing what to do, not writing the message.
+
+Company profile:
+${params.companyProfile}
+
+Agent persona:
+${params.agentPersona}
+
+Outreach strategy:
+${params.strategy}
+
+Conversation history:
+${params.history}
+
+Candidate analysis:
+${params.candidateAnalysis}
+
+Strategy check:
+${params.strategyCheck}
+
+Conversation position: ${params.position}
+
+Return ONLY JSON:
+{
+  "action": "reply|answer_directly|facilitate_scheduling|handle_objection|build_interest|graceful_close|ask_one_question",
+  "goal": "one sentence describing what this action should accomplish",
+  "rationale": "one sentence explaining why this action fits now"
+}
+
+Action guide:
+- answer_directly: factual question answerable from company profile; answer fully then stop
+- facilitate_scheduling: candidate asked to schedule/connect OR readiness is ready_to_schedule/already_asked with scheduling intent
+- handle_objection: objection raised; use playbook approach
+- graceful_close: candidate declining or clearly not interested; warm exit, no pressure
+- build_interest: early conversation, candidate curious but needs compelling role/company detail
+- ask_one_question: need one missing fact from candidate before continuing (use sparingly)
+- reply: general next move when nothing above fits better
+
+Rules:
+- If call_already_scheduled is true, use answer_directly for factual questions; do not facilitate_scheduling unless rescheduling
+- Do not default to scheduling; match the candidate's actual intent
+- Prefer answer_directly over reply when they asked a specific question you can answer
+
+${GLOBAL_RULES}`;
+}
+
 export function candidateSummaryPrompt(
   companyProfile: string,
   agentPersona: string,

@@ -48,6 +48,15 @@ export function ReasoningPanel({ reasoning, loading }: ReasoningPanelProps) {
         )}
         {reasoning && (
           <>
+            {reasoning.agent_action && (
+              <ReasoningBlock title="Agent decision (free-running)" borderColor="coral">
+                <p className="font-medium capitalize text-fg-primary">
+                  Next action: {reasoning.agent_action.action.replace(/_/g, ' ')}
+                </p>
+                <p className="mt-1 text-fg-secondary">{reasoning.agent_action.goal}</p>
+                <p className="mt-1 text-fg-tertiary">{reasoning.agent_action.rationale}</p>
+              </ReasoningBlock>
+            )}
             <ReasoningBlock title="Candidate analysis" borderColor="teal">
               <p>Sentiment: {reasoning.candidate_analysis.sentiment}</p>
               <p>Intent: {reasoning.candidate_analysis.intent}</p>

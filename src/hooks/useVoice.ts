@@ -53,11 +53,27 @@ export function useVoice() {
 
   useEffect(() => {
     setIsSupported(Boolean(getSpeechRecognitionCtor()));
+
+    const primeVoices = () => {
+      window.speechSynthesis?.getVoices();
+    };
+    primeVoices();
+    window.speechSynthesis?.addEventListener('voiceschanged', primeVoices);
+
     return () => {
+      window.speechSynthesis?.removeEventListener('voiceschanged', primeVoices);
       stopListening();
       window.speechSynthesis.cancel();
     };
   }, [stopListening]);
+
+  const unlockAudio = useCallback(() => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(' ');
+    utterance.volume = 0;
+    window.speechSynthesis.speak(utterance);
+  }, []);
 
   const speak = useCallback(
     (text: string): Promise<void> => {
@@ -200,5 +216,6 @@ export function useVoice() {
     speak,
     startAutoListen,
     stopListening,
+    unlockAudio,
   };
 }
