@@ -206,19 +206,46 @@ async function loadCandidateProfileText(
   });
 }
 
+function buildHistoryFromMessages(
+  messages: { role: string; content: string }[],
+  excludeLatestCandidateMessage?: string,
+): string {
+  let rows = messages;
+  if (excludeLatestCandidateMessage && rows.length > 0) {
+    const last = rows[rows.length - 1];
+    if (
+      last.role === 'user' &&
+      last.content.trim() === excludeLatestCandidateMessage.trim()
+    ) {
+      rows = rows.slice(0, -1);
+    }
+  }
+  return rows.map((m) => `${m.role}: ${m.content}`).join('\n');
+}
+
+function buildGroundedHistory(history: string): string {
+  if (!history.trim()) {
+    return '[No prior messages yet.]';
+  }
+  return `${history}\n\n[SYSTEM NOTE: You may ONLY reference names and facts from the COMPANY FACTS section. Do not use names from any other source.]`;
+}
+
 function buildStrategyAdjustments(
   strategy: AgentStrategy,
   candidateAnalysis: Record<string, unknown>,
   strategyCheck: Record<string, unknown>,
-): Promise<string> {
+): string {
   const shouldPushForCall = Boolean(strategyCheck.should_push_for_call);
   const actionRequested = String(candidateAnalysis.action_requested ?? 'none');
+  const intent = String(candidateAnalysis.intent ?? '');
   const topicsCovered = Array.isArray(candidateAnalysis.topics_already_covered)
     ? candidateAnalysis.topics_already_covered.map(String)
     : [];
   const nextGoal = strategyCheck.next_goal
     ? String(strategyCheck.next_goal)
     : null;
+  const isSubstantiveQuestion =
+    intent === 'asking_questions' && actionRequested === 'none';
 
   let strategyAdjustments = 'No adjustment needed';
   if (strategyCheck.adjustment_needed) {
@@ -234,13 +261,16 @@ function buildStrategyAdjustments(
     strategyAdjustments += ` NEXT GOAL: ${nextGoal}.`;
   }
 
-  if (shouldPushForCall) {
+  if (isSubstantiveQuestion) {
     strategyAdjustments +=
-      ' PUSH FOR CALL: Candidate is ready, propose a specific time.';
+      ' ANSWER THE QUESTION FIRST with substantive content. Do not skip to scheduling.';
+  } else if (shouldPushForCall) {
+    strategyAdjustments +=
+      ' PUSH FOR CALL: Candidate is ready, propose a specific time after answering.';
   }
 
   if (actionRequested && actionRequested !== 'none') {
-    strategyAdjustments += ` ACTION REQUESTED: Candidate asked to ${actionRequested}. Execute this, do not deflect.`;
+    strategyAdjustments += ` ACTION REQUESTED: Candidate asked to ${actionRequested}. Facilitate this, do not deflect or claim it is already done.`;
   }
 
   if (topicsCovered.length > 0) {
@@ -250,7 +280,7 @@ function buildStrategyAdjustments(
   const readiness = strategyCheck.candidate_readiness;
   if (readiness === 'already_asked' || readiness === 'ready_to_schedule') {
     strategyAdjustments +=
-      ' CANDIDATE READINESS: High. Act immediately on their request, do not re-pitch.';
+      ' CANDIDATE READINESS: High. Facilitate their request, do not re-pitch.';
   }
 
   return strategyAdjustments;
@@ -264,6 +294,7 @@ async function generateResponse(
   candidateAnalysis: Record<string, unknown>,
   strategyCheck: Record<string, unknown>,
   candidateProfile?: string,
+  candidateLatestMessage?: string,
 ) {
   const agentCount = history.split('\n').filter((l) => l.startsWith('agent:')).length;
   const stepIndex = Math.min(agentCount, strategy.steps.length - 1);
@@ -275,17 +306,22 @@ async function generateResponse(
     strategyCheck,
   );
 
+  const groundedHistory = buildGroundedHistory(history);
+
+  const promptParams = {
+    agentPersona: JSON.stringify(persona),
+    companyProfile: JSON.stringify(profile),
+    currentStrategyStep: JSON.stringify(currentStep),
+    conversationHistory: groundedHistory,
+    candidateAnalysis: JSON.stringify(candidateAnalysis),
+    strategyAdjustments,
+    candidateProfile,
+    candidateLatestMessage,
+  };
+
   const raw = await callOpenAI(
     MODELS.conversation,
-    messageGenerationPrompt({
-      agentPersona: JSON.stringify(persona),
-      companyProfile: JSON.stringify(profile),
-      currentStrategyStep: JSON.stringify(currentStep),
-      conversationHistory: history,
-      candidateAnalysis: JSON.stringify(candidateAnalysis),
-      strategyAdjustments,
-      candidateProfile,
-    }),
+    messageGenerationPrompt(promptParams),
     'Generate response JSON.',
     true,
   );
@@ -293,15 +329,7 @@ async function generateResponse(
   return parseJSON<{ message: string; reasoning: ReasoningTrace }>(raw, () =>
     callOpenAI(
       MODELS.conversation,
-      messageGenerationPrompt({
-        agentPersona: JSON.stringify(persona),
-        companyProfile: JSON.stringify(profile),
-        currentStrategyStep: JSON.stringify(currentStep),
-        conversationHistory: history,
-        candidateAnalysis: JSON.stringify(candidateAnalysis),
-        strategyAdjustments,
-        candidateProfile,
-      }) + '\nReturn ONLY valid JSON.',
+      messageGenerationPrompt(promptParams) + '\nReturn ONLY valid JSON.',
       'Generate response JSON.',
       true,
     ),
@@ -363,10 +391,11 @@ Deno.serve(async (req) => {
           agentPersona: JSON.stringify(persona),
           companyProfile: JSON.stringify(profile),
           currentStrategyStep: JSON.stringify(step),
-          conversationHistory: 'Reset. Opening message only.',
+          conversationHistory: buildGroundedHistory('Reset. Opening message only.'),
           candidateAnalysis: 'N/A',
-          strategyAdjustments: 'None',
+          strategyAdjustments: 'Opening outreach only. Do not push for a call yet.',
           candidateProfile,
+          candidateLatestMessage: 'Opening outreach, no candidate message yet.',
         }),
         'Generate opening message JSON.',
         true,
@@ -487,9 +516,10 @@ Deno.serve(async (req) => {
         .eq('phase', 'simulation')
         .order('created_at', { ascending: true });
 
-      const history = (simMessages ?? [])
-        .map((m) => `${m.role}: ${m.content}`)
-        .join('\n');
+      const history = buildHistoryFromMessages(
+        simMessages ?? [],
+        candidateMessage,
+      );
 
       const agentCount = (simMessages ?? []).filter((m) => m.role === 'agent').length;
       const position = `Message ${agentCount + 1} of ${strategy.sequence_length ?? 3}`;
@@ -525,9 +555,7 @@ Deno.serve(async (req) => {
       .eq('phase', 'simulation')
       .order('created_at', { ascending: true });
 
-    const history = (simMessages ?? [])
-      .map((m) => `${m.role}: ${m.content}`)
-      .join('\n');
+    const history = buildHistoryFromMessages(simMessages ?? [], candidateMessage);
 
     const agentCount = (simMessages ?? []).filter((m) => m.role === 'agent').length;
     const position = `Message ${agentCount + 1} of ${strategy.sequence_length ?? 3}`;
@@ -556,6 +584,7 @@ Deno.serve(async (req) => {
       candidateAnalysis,
       strategyCheck,
       candidateProfile,
+      candidateMessage,
     );
 
     await db.from('messages').insert([
