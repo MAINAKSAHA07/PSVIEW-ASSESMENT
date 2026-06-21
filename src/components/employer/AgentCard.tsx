@@ -97,7 +97,7 @@ export function AgentCard({ session, onDelete, deleting }: AgentCardProps) {
           {continueLabel(session)}
         </Link>
         <Link
-          to="/app/dashboard"
+          to={`/app/dashboard?session=${session.id}`}
           className="rounded-md border border-line px-3 py-1.5 text-xs text-fg-secondary hover:border-teal hover:text-teal"
         >
           View applications

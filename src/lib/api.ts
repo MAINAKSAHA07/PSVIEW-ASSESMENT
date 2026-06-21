@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { sanitizeObject } from './sanitize';
-import { computeRoleMatch, parseRoleMatch } from './matching';
+import { computeRoleMatch, parseRoleMatch, buildSessionApplicantPool } from './matching';
+import type { ApplicantPoolEntry } from './matching';
 import type {
   ApplicationStatus,
   CandidateApplication,
@@ -243,6 +244,36 @@ export async function fetchPublishedSessions(): Promise<Session[]> {
 
   if (error) throw new Error(error.message);
   return (data ?? []) as Session[];
+}
+
+function mapProfileRow(row: Record<string, unknown>): Profile {
+  return {
+    ...(row as unknown as Profile),
+    skills: (row.skills as string[]) ?? [],
+    open_to_roles: (row.open_to_roles as string[]) ?? [],
+  };
+}
+
+export async function fetchSessionApplicantPool(
+  session: Session,
+): Promise<ApplicantPoolEntry[]> {
+  const { data, error } = await supabase.rpc('get_session_applicant_pool', {
+    p_session_id: session.id,
+  });
+
+  if (error) throw new Error(error.message);
+
+  const payload = (data ?? {}) as {
+    applications?: Record<string, unknown>[];
+    candidates?: Record<string, unknown>[];
+  };
+
+  const applications = (payload.applications ?? []).map((row) =>
+    mapApplication(row),
+  );
+  const candidates = (payload.candidates ?? []).map((row) => mapProfileRow(row));
+
+  return buildSessionApplicantPool(session, applications, candidates);
 }
 
 export async function fetchEmployerApplications(

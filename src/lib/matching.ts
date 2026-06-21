@@ -1,4 +1,4 @@
-import type { Profile, RoleMatch, MatchTier, Session } from './types';
+import type { CandidateApplication, Profile, RoleMatch, MatchTier, Session } from './types';
 
 /** Canonical skill groups — any alias match counts as a hit */
 const SKILL_GROUPS: string[][] = [
@@ -444,4 +444,54 @@ export function parseRoleMatch(raw: unknown): RoleMatch | null {
     missing_skills: (obj.missing_skills as string[]) ?? [],
     highlights: (obj.highlights as string[]) ?? [],
   };
+}
+
+export const GOOD_MATCH_THRESHOLD = 75;
+
+export type ApplicantPoolEntry = {
+  kind: 'applied' | 'suggested';
+  candidate: Profile;
+  match: RoleMatch;
+  application: CandidateApplication | null;
+};
+
+export function buildSessionApplicantPool(
+  session: Session,
+  applications: CandidateApplication[],
+  candidates: Profile[],
+  minScore = GOOD_MATCH_THRESHOLD,
+): ApplicantPoolEntry[] {
+  const appliedIds = new Set(applications.map((a) => a.candidate_id));
+  const candidateById = new Map(candidates.map((c) => [c.id, c]));
+
+  const appliedEntries: ApplicantPoolEntry[] = [];
+
+  for (const application of applications) {
+    const candidate = candidateById.get(application.candidate_id);
+    if (!candidate) continue;
+    appliedEntries.push({
+      kind: 'applied',
+      candidate,
+      match: computeRoleMatch(candidate, session),
+      application,
+    });
+  }
+
+  const suggestedEntries: ApplicantPoolEntry[] = candidates
+    .filter((c) => !appliedIds.has(c.id))
+    .map((candidate) => ({
+      candidate,
+      match: computeRoleMatch(candidate, session),
+    }))
+    .filter(({ match }) => match.score >= minScore)
+    .map(({ candidate, match }) => ({
+      kind: 'suggested' as const,
+      candidate,
+      match,
+      application: null,
+    }));
+
+  return [...appliedEntries, ...suggestedEntries].sort(
+    (a, b) => b.match.score - a.match.score,
+  );
 }

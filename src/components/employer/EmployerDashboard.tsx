@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   deleteEmployerSession,
   fetchEmployerApplications,
@@ -9,9 +9,12 @@ import { useAuthContext } from '../../context/AuthContext';
 import type { CandidateApplication, Profile, Session } from '../../lib/types';
 import { AgentCard } from './AgentCard';
 import { ApplicationsList } from './ApplicationsList';
+import { SessionApplicantsList } from './SessionApplicantsList';
 
 export function EmployerDashboard() {
   const { user } = useAuthContext();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedSessionId = searchParams.get('session');
   const [sessions, setSessions] = useState<Session[]>([]);
   const [applications, setApplications] = useState<
     (CandidateApplication & { candidate?: Profile })[]
@@ -42,6 +45,11 @@ export function EmployerDashboard() {
     void loadData();
   }, [loadData]);
 
+  const selectedSession = useMemo(
+    () => sessions.find((s) => s.id === selectedSessionId) ?? null,
+    [sessions, selectedSessionId],
+  );
+
   const handleDelete = async (sessionId: string) => {
     setDeletingId(sessionId);
     setError(null);
@@ -67,7 +75,9 @@ export function EmployerDashboard() {
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto max-w-4xl p-4 sm:p-6">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="font-serif text-xl text-fg-primary sm:text-2xl">Your agents</h1>
+          <h1 className="font-serif text-xl text-fg-primary sm:text-2xl">
+            {selectedSession ? 'Role applicants' : 'Your agents'}
+          </h1>
           <Link
             to="/app?new=1"
             className="inline-flex justify-center rounded-lg bg-coral px-4 py-2 text-sm font-medium text-white hover:bg-coral-dark"
@@ -78,7 +88,26 @@ export function EmployerDashboard() {
 
         {error && <p className="mb-4 text-sm text-err">{error}</p>}
 
-        <div className="mb-8 space-y-3">
+        {selectedSession && (
+          <div className="mb-8">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-serif text-xl text-fg-primary">Applicants for this role</h2>
+              <button
+                type="button"
+                onClick={() => setSearchParams({})}
+                className="text-xs text-fg-secondary hover:text-teal"
+              >
+                ← All agents
+              </button>
+            </div>
+            <SessionApplicantsList session={selectedSession} />
+          </div>
+        )}
+
+        <div className={`space-y-3 ${selectedSession ? 'mt-8 border-t border-line pt-8' : 'mb-8'}`}>
+          {selectedSession && (
+            <h2 className="font-serif text-lg text-fg-primary">Your agents</h2>
+          )}
           {sessions.length === 0 ? (
             <p className="text-sm text-fg-secondary">No agents configured yet.</p>
           ) : (
@@ -93,8 +122,16 @@ export function EmployerDashboard() {
           )}
         </div>
 
-        <h2 className="mb-4 font-serif text-xl text-fg-primary">Applications</h2>
-        <ApplicationsList applications={applications} sessions={sessions} />
+        {!selectedSession && (
+          <>
+            <h2 className="mb-2 font-serif text-xl text-fg-primary">Applications</h2>
+            <p className="mb-4 text-sm text-fg-secondary">
+              Open an agent above and click <span className="text-fg-primary">View applications</span>{' '}
+              to see who applied and potential matches at 75%+.
+            </p>
+            <ApplicationsList applications={applications} sessions={sessions} />
+          </>
+        )}
       </div>
     </div>
   );
