@@ -10,6 +10,7 @@ import type {
   Message,
   ParsedResume,
   Profile,
+  RoleMatch,
   Session,
   SimulateResponse,
   SimulateAnalyzeResponse,
@@ -139,6 +140,18 @@ export async function parseResume(fileText: string): Promise<{
     'parse-resume',
     { file_text: fileText },
   );
+}
+
+export async function updateApplicationMatchScore(
+  applicationId: string,
+  matchScore: RoleMatch,
+): Promise<void> {
+  const { error } = await supabase
+    .from('candidate_applications')
+    .update({ match_score: matchScore })
+    .eq('id', applicationId);
+
+  if (error) throw new Error(error.message);
 }
 
 function mapApplication(row: Record<string, unknown>): CandidateApplication {

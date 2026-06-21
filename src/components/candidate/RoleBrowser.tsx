@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchPublishedSessions } from '../../lib/api';
 import { computeRoleMatch } from '../../lib/matching';
 import { useProfileContext } from '../../context/ProfileContext';
-import type { MatchTier, Session } from '../../lib/types';
+import type { MatchTier, Profile, Session } from '../../lib/types';
 import { MatchFilterTabs } from '../shared/MatchBadge';
+import { CandidateResumeUpload } from './CandidateResumeUpload';
 import { RoleCard } from './RoleCard';
 
 interface RoleBrowserProps {
@@ -12,11 +13,12 @@ interface RoleBrowserProps {
 }
 
 export function RoleBrowser({ onTalk, startingId }: RoleBrowserProps) {
-  const { profile } = useProfileContext();
+  const { profile, refreshProfile } = useProfileContext();
   const [roles, setRoles] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<MatchTier | 'all'>('all');
+  const [localProfile, setLocalProfile] = useState<Profile | null>(profile);
 
   useEffect(() => {
     fetchPublishedSessions()
@@ -27,15 +29,21 @@ export function RoleBrowser({ onTalk, startingId }: RoleBrowserProps) {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    setLocalProfile(profile);
+  }, [profile]);
+
+  const activeProfile = localProfile ?? profile;
+
   const rolesWithMatch = useMemo(
     () =>
       roles
         .map((session) => ({
           session,
-          match: computeRoleMatch(profile, session),
+          match: computeRoleMatch(activeProfile, session),
         }))
         .sort((a, b) => b.match.score - a.match.score),
-    [roles, profile],
+    [roles, activeProfile],
   );
 
   const counts = useMemo(() => {
@@ -95,6 +103,15 @@ export function RoleBrowser({ onTalk, startingId }: RoleBrowserProps) {
 
       <MatchFilterTabs value={filter} onChange={setFilter} counts={counts} />
 
+      <CandidateResumeUpload
+        variant="banner"
+        disabled={loading}
+        onParsed={async (updated) => {
+          setLocalProfile(updated);
+          await refreshProfile();
+        }}
+      />
+
       {filteredRoles.length === 0 ? (
         <p className="rounded-lg border border-dashed border-line p-6 text-center text-sm text-fg-secondary">
           No roles in this match category. Try another filter.
@@ -104,7 +121,7 @@ export function RoleBrowser({ onTalk, startingId }: RoleBrowserProps) {
           <RoleCard
             key={session.id}
             session={session}
-            profile={profile}
+            profile={activeProfile}
             match={match}
             onTalk={onTalk}
             loading={startingId === session.id}

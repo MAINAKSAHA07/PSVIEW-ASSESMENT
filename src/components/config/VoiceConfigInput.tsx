@@ -13,6 +13,7 @@ interface VoiceConfigInputProps {
   isSupported: boolean;
   onStartListening: () => void;
   onStopListening: () => void;
+  placeholder?: string;
 }
 
 function IconMic({ className = 'h-7 w-7' }: { className?: string }) {
@@ -38,6 +39,7 @@ export function VoiceConfigInput({
   isSupported,
   onStartListening,
   onStopListening,
+  placeholder = 'Tell me about your company...',
 }: VoiceConfigInputProps) {
   const textMode = inputMode === 'text';
   const [text, setText] = useState('');
@@ -228,7 +230,7 @@ export function VoiceConfigInput({
                   handleSubmit(e);
                 }
               }}
-              placeholder="Tell me about your company..."
+              placeholder={placeholder}
               rows={2}
               disabled={disabled || sending}
               className={`w-full resize-none rounded-[10px] border border-line bg-app-card py-2.5 text-sm text-fg-primary placeholder:text-fg-tertiary focus:border-coral focus:outline-none disabled:opacity-50 ${onFileSelect ? 'pl-10 pr-3' : 'px-3'}`}

@@ -76,6 +76,7 @@ async function analyzeCandidate(message: string, history: string) {
     action_requested?: string;
     topics_already_covered?: string[];
     conversation_stage?: string;
+    call_already_scheduled?: boolean;
   }>(raw, () =>
     callOpenAI(
       MODELS.utility,
@@ -230,10 +231,30 @@ function buildGroundedHistory(history: string): string {
   return `${history}\n\n[SYSTEM NOTE: You may ONLY reference names and facts from the COMPANY FACTS section. Do not use names from any other source.]`;
 }
 
+function callAlreadyScheduled(history: string): boolean {
+  const lower = history.toLowerCase();
+  const bookedPhrases = [
+    'locked in',
+    'works for me',
+    'thursday works',
+    'friday works',
+    'pass your availability',
+    'get the invite',
+    'coordinate',
+    'set up a call',
+    'setup a call',
+  ];
+  const dayConfirmed =
+    /\b(monday|tuesday|wednesday|thursday|friday)\b/.test(lower) &&
+    (lower.includes('works') || lower.includes('locked') || lower.includes('available'));
+  return bookedPhrases.some((p) => lower.includes(p)) || dayConfirmed;
+}
+
 function buildStrategyAdjustments(
   strategy: AgentStrategy,
   candidateAnalysis: Record<string, unknown>,
   strategyCheck: Record<string, unknown>,
+  history: string,
 ): string {
   const shouldPushForCall = Boolean(strategyCheck.should_push_for_call);
   const actionRequested = String(candidateAnalysis.action_requested ?? 'none');
@@ -246,6 +267,13 @@ function buildStrategyAdjustments(
     : null;
   const isSubstantiveQuestion =
     intent === 'asking_questions' && actionRequested === 'none';
+  const callBooked =
+    Boolean(candidateAnalysis.call_already_scheduled) ||
+    callAlreadyScheduled(history);
+
+  const isExploratoryInterest =
+    (intent === 'expressing_interest' || intent === 'asking_questions') &&
+    actionRequested === 'none';
 
   let strategyAdjustments = 'No adjustment needed';
   if (strategyCheck.adjustment_needed) {
@@ -257,16 +285,19 @@ function buildStrategyAdjustments(
     strategyAdjustments = `${strategyCheck.adjustment_rationale}. Playbook: ${playbookText}`;
   }
 
-  if (nextGoal) {
+  if (nextGoal && !callBooked && !isSubstantiveQuestion) {
     strategyAdjustments += ` NEXT GOAL: ${nextGoal}.`;
   }
 
-  if (isSubstantiveQuestion) {
+  if (callBooked) {
     strategyAdjustments +=
-      ' ANSWER THE QUESTION FIRST with substantive content. Do not skip to scheduling.';
-  } else if (shouldPushForCall) {
+      ' CALL ALREADY BOOKED: Answer questions directly. Do NOT mention scheduling, calls, invites, or "the hiring manager on the call" unless rescheduling.';
+  } else if (isSubstantiveQuestion || isExploratoryInterest) {
     strategyAdjustments +=
-      ' PUSH FOR CALL: Candidate is ready, propose a specific time after answering.';
+      ' ANSWER FULLY from COMPANY FACTS then STOP. Do NOT mention calls, scheduling, or the hiring manager.';
+  } else if (shouldPushForCall && actionRequested !== 'none') {
+    strategyAdjustments +=
+      ' Facilitate the requested action (schedule/connect). Propose a specific time.';
   }
 
   if (actionRequested && actionRequested !== 'none') {
@@ -278,7 +309,11 @@ function buildStrategyAdjustments(
   }
 
   const readiness = strategyCheck.candidate_readiness;
-  if (readiness === 'already_asked' || readiness === 'ready_to_schedule') {
+  if (
+    (readiness === 'already_asked' || readiness === 'ready_to_schedule') &&
+    !callBooked &&
+    actionRequested !== 'none'
+  ) {
     strategyAdjustments +=
       ' CANDIDATE READINESS: High. Facilitate their request, do not re-pitch.';
   }
@@ -304,6 +339,7 @@ async function generateResponse(
     strategy,
     candidateAnalysis,
     strategyCheck,
+    history,
   );
 
   const groundedHistory = buildGroundedHistory(history);

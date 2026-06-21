@@ -313,6 +313,39 @@ export const MATCH_TIER_LABELS: Record<MatchTier, string> = {
   weak: 'Weak match',
 };
 
+export function getFitVerdict(match: RoleMatch): {
+  headline: string;
+  detail: string;
+  isGoodFit: boolean;
+} {
+  switch (match.tier) {
+    case 'strong':
+      return {
+        headline: 'Strong fit for this role',
+        detail: 'Your skills and experience align well with what they’re looking for.',
+        isGoodFit: true,
+      };
+    case 'good':
+      return {
+        headline: 'Good fit for this role',
+        detail: 'You match most of the core requirements. Worth exploring further.',
+        isGoodFit: true,
+      };
+    case 'partial':
+      return {
+        headline: 'Partial fit — some gaps',
+        detail: 'You overlap on several skills but are missing key items for this role.',
+        isGoodFit: false,
+      };
+    default:
+      return {
+        headline: 'Limited fit based on your profile',
+        detail: 'Upload a resume or add skills to improve match scoring before applying.',
+        isGoodFit: false,
+      };
+  }
+}
+
 export function computeRoleMatch(
   profile: Profile | null | undefined,
   session: Session,

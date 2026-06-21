@@ -1,4 +1,5 @@
 import type { Profile, RoleMatch, Session } from '../../lib/types';
+import { FitAssessmentCard } from '../shared/FitAssessmentCard';
 import { MatchBadge } from '../shared/MatchBadge';
 import { MatchBreakdown } from '../shared/MatchBreakdown';
 
@@ -33,6 +34,12 @@ export function RoleCard({
         </div>
         <MatchBadge match={match} />
       </div>
+
+      {match.score > 0 && (
+        <div className="mt-3">
+          <FitAssessmentCard match={match} compact />
+        </div>
+      )}
 
       {company.pitch && (
         <p className="mt-3 text-sm italic text-fg-primary">
