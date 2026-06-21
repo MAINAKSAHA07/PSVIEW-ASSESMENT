@@ -1,4 +1,4 @@
-import type { CandidateApplication, Profile, RoleMatch, MatchTier, Session } from './types';
+import type { CandidateApplication, CandidateOutreach, Profile, RoleMatch, MatchTier, Session } from './types';
 
 /** Canonical skill groups — any alias match counts as a hit */
 const SKILL_GROUPS: string[][] = [
@@ -453,6 +453,7 @@ export type ApplicantPoolEntry = {
   candidate: Profile;
   match: RoleMatch;
   application: CandidateApplication | null;
+  outreach?: CandidateOutreach | null;
 };
 
 export function buildSessionApplicantPool(

@@ -5,6 +5,7 @@ import type { ApplicantPoolEntry } from './matching';
 import type {
   ApplicationStatus,
   CandidateApplication,
+  CandidateOutreach,
   CandidateSummary,
   CompanyProfile,
   ConfigureResponse,
@@ -266,14 +267,87 @@ export async function fetchSessionApplicantPool(
   const payload = (data ?? {}) as {
     applications?: Record<string, unknown>[];
     candidates?: Record<string, unknown>[];
+    outreach?: Record<string, unknown>[];
   };
 
   const applications = (payload.applications ?? []).map((row) =>
     mapApplication(row),
   );
   const candidates = (payload.candidates ?? []).map((row) => mapProfileRow(row));
+  const outreachRows = (payload.outreach ?? []) as Record<string, unknown>[];
+  const outreachByCandidate = new Map(
+    outreachRows.map((row) => [
+      String(row.candidate_id),
+      row as unknown as CandidateOutreach,
+    ]),
+  );
 
-  return buildSessionApplicantPool(session, applications, candidates);
+  return buildSessionApplicantPool(session, applications, candidates).map(
+    (entry) => ({
+      ...entry,
+      outreach: outreachByCandidate.get(entry.candidate.id) ?? null,
+    }),
+  );
+}
+
+export async function sendCandidateOutreach(
+  sessionId: string,
+  candidateId: string,
+  matchScore: RoleMatch,
+): Promise<{ message: string; outreach: CandidateOutreach }> {
+  const response = await invokeFunction<{
+    results: Array<{
+      candidate_id: string;
+      message?: string;
+      outreach?: CandidateOutreach;
+      error?: string;
+      skipped?: boolean;
+      reason?: string;
+    }>;
+  }>('outreach', {
+    session_id: sessionId,
+    candidate_id: candidateId,
+    match_score: matchScore,
+  });
+
+  const row = response.results.find((r) => r.candidate_id === candidateId);
+  if (!row || row.skipped || row.error) {
+    throw new Error(
+      row?.reason === 'below_threshold'
+        ? 'Match score is below 75% outreach threshold'
+        : row?.error ?? row?.reason ?? 'Outreach failed',
+    );
+  }
+  if (!row.message || !row.outreach) {
+    throw new Error('Outreach failed');
+  }
+  return { message: row.message, outreach: row.outreach };
+}
+
+export async function sendBulkCandidateOutreach(
+  sessionId: string,
+  entries: { candidateId: string; matchScore: RoleMatch }[],
+): Promise<{ sent: number; skipped: number }> {
+  const match_scores: Record<string, RoleMatch> = {};
+  for (const entry of entries) {
+    match_scores[entry.candidateId] = entry.matchScore;
+  }
+
+  const response = await invokeFunction<{
+    results: Array<{ skipped?: boolean; outreach?: CandidateOutreach }>;
+  }>('outreach', {
+    session_id: sessionId,
+    candidate_ids: entries.map((e) => e.candidateId),
+    match_scores,
+  });
+
+  let sent = 0;
+  let skipped = 0;
+  for (const row of response.results) {
+    if (row.skipped) skipped += 1;
+    else if (row.outreach) sent += 1;
+  }
+  return { sent, skipped };
 }
 
 export async function fetchEmployerApplications(

@@ -77,6 +77,19 @@ export interface CandidateApplication {
   candidate?: Profile;
 }
 
+export interface CandidateOutreach {
+  id: string;
+  created_at: string;
+  updated_at?: string;
+  session_id: string;
+  candidate_id: string;
+  employer_id: string;
+  match_score: RoleMatch | Record<string, unknown>;
+  status: string;
+  message: string;
+  sent_at: string | null;
+}
+
 export interface FieldSource {
   source: string | null;
   confidence: number | null;

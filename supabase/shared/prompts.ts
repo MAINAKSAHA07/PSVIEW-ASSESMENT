@@ -435,6 +435,46 @@ Base every assessment on what the candidate actually said. Do not infer personal
 ${GLOBAL_RULES}`;
 }
 
+export function candidateOutreachPrompt(params: {
+  agentPersona: string;
+  companyProfile: string;
+  strategyStep: string;
+  candidateProfile: string;
+  matchScore: number;
+  matchedSkills: string[];
+}): string {
+  return `You are a recruiting agent sending a personalized FIRST outreach message to a candidate who has NOT applied yet. Preview only (no email is actually sent).
+
+Match score: ${params.matchScore}%
+Skills that matched this role: ${params.matchedSkills.join(', ') || 'general profile overlap'}
+
+AGENT PERSONALITY:
+${params.agentPersona}
+
+COMPANY FACTS (only reference these):
+${params.companyProfile}
+
+OUTREACH STRATEGY STEP:
+${params.strategyStep}
+
+CANDIDATE PROFILE (personalize using only these facts):
+${params.candidateProfile}
+
+RULES:
+- Opening outreach only. No prior conversation.
+- Reference 1-2 matched skills or their current role naturally if relevant.
+- 3-4 sentences max. Show personality. No call pressure on first touch.
+- Do NOT invent company facts or candidate details.
+- Do NOT say you sent email or LinkedIn message.
+
+Return ONLY JSON:
+{
+  "message": "your outreach message"
+}
+
+${GLOBAL_RULES}`;
+}
+
 export function resumeExtractionPrompt(): string {
   return `Extract candidate profile fields from this resume.
 
