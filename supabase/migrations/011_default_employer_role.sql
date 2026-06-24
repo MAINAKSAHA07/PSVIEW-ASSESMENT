@@ -1,4 +1,5 @@
--- Fix Google OAuth signup: "Database error saving new user"
+-- Default new signups to employer; backfill existing null roles.
+
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -27,6 +28,4 @@ BEGIN
 END;
 $$;
 
-GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
-GRANT ALL ON TABLE public.profiles TO supabase_auth_admin;
-GRANT EXECUTE ON FUNCTION public.handle_new_user() TO supabase_auth_admin;
+UPDATE public.profiles SET role = 'employer' WHERE role IS NULL;

@@ -3,17 +3,20 @@ import {
   configureChat,
   configureQuickSetup,
   configureUpload,
-  updateSessionStatus,
+  launchAgentToSimulation,
 } from '../../lib/api';
 import { useSessionContext } from '../../context/SessionContext';
 import { useMessages } from '../../hooks/useMessages';
 import { useFileParser } from '../../hooks/useFileParser';
 import { useVoice } from '../../hooks/useVoice';
-import { isProfileReady } from '../../lib/constants';
+import { isProfileReady, isUrlOnlyMessage } from '../../lib/constants';
 import { MessageList } from './MessageList';
 import { VoiceConfigInput } from './VoiceConfigInput';
 import { QuickSetupForm } from './QuickSetupForm';
-import type { CompanyProfile, Message } from '../../lib/types';
+import type { CompanyProfile, Message, Session } from '../../lib/types';
+
+const URL_DECLINE_MESSAGE =
+  "I can't fetch URLs directly yet, but paste the job description text here and I'll work with that.";
 
 export function ConfigChat() {
   const {
@@ -22,8 +25,10 @@ export function ConfigChat() {
     setLoading,
     setError,
     setPhase,
+    phase,
     isLoading,
     error,
+    setMessages,
   } = useSessionContext();
   const { configMessages, addMessage } = useMessages();
   const { extractFileText } = useFileParser();
@@ -42,12 +47,56 @@ export function ConfigChat() {
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const lastSpokenIdRef = useRef<string | null>(null);
   const handleSendRef = useRef<(text: string) => Promise<void>>(async () => undefined);
+  const autoLaunchRef = useRef(false);
+
+  useEffect(() => {
+    autoLaunchRef.current = false;
+  }, [session?.id]);
 
   useEffect(() => {
     if (session?.company_profile) {
       setReadyToSynthesize(isProfileReady(session.company_profile));
     }
   }, [session?.id, session?.company_profile]);
+
+  const runLaunch = useCallback(
+    async (sessionSnapshot: Session, profile?: CompanyProfile) => {
+      setLoading(true);
+      setError(null);
+      setUploadStatus('Building your agent...');
+      try {
+        const result = await launchAgentToSimulation(sessionSnapshot.id);
+        setSession({
+          ...sessionSnapshot,
+          status: 'simulating',
+          company_profile: profile ?? sessionSnapshot.company_profile,
+          agent_persona: result.agent_persona,
+          agent_strategy: result.agent_strategy,
+        });
+        setMessages(result.messages);
+        setPhase('simulating');
+      } catch (err) {
+        autoLaunchRef.current = false;
+        setError(err instanceof Error ? err.message : 'Failed to build agent');
+      } finally {
+        setLoading(false);
+        setUploadStatus(null);
+      }
+    },
+    [setLoading, setError, setSession, setMessages, setPhase],
+  );
+
+  useEffect(() => {
+    if (!readyToSynthesize || !session || isLoading || phase !== 'configuring') return;
+    if (autoLaunchRef.current) return;
+
+    autoLaunchRef.current = true;
+    setUploadStatus('Profile complete. Generating your agent...');
+    const timer = window.setTimeout(() => {
+      void runLaunch(session);
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [readyToSynthesize, session, isLoading, phase, runLaunch]);
 
   const openListenWindow = useCallback(() => {
     if (inputMode !== 'voice' || !isSupported) return;
@@ -86,21 +135,38 @@ export function ConfigChat() {
     if (!session) return;
     stopListening();
 
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
     const userMsg: Message = {
       id: crypto.randomUUID(),
       session_id: session.id,
       created_at: new Date().toISOString(),
       phase: 'config',
       role: 'user',
-      content: text,
+      content: trimmed,
       reasoning: null,
     };
     addMessage(userMsg);
 
+    if (isUrlOnlyMessage(trimmed)) {
+      const agentMsg: Message = {
+        id: crypto.randomUUID(),
+        session_id: session.id,
+        created_at: new Date().toISOString(),
+        phase: 'config',
+        role: 'agent',
+        content: URL_DECLINE_MESSAGE,
+        reasoning: null,
+      };
+      addMessage(agentMsg);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
-      const response = await configureChat(session.id, text);
+      const response = await configureChat(session.id, trimmed);
       setSession({
         ...session,
         company_profile: response.company_profile,
@@ -150,11 +216,18 @@ export function ConfigChat() {
       setUploadStatus('Analyzing your document...');
 
       const response = await configureUpload(session.id, fileText);
-      setSession({
+      const updatedSession = {
         ...session,
         company_profile: response.company_profile,
-        config_source: 'upload',
-      });
+        config_source: 'upload' as const,
+      };
+      setSession(updatedSession);
+      if (response.ready_to_synthesize) {
+        autoLaunchRef.current = true;
+        setReadyToSynthesize(true);
+        await runLaunch(updatedSession, response.company_profile);
+        return;
+      }
       setReadyToSynthesize(response.ready_to_synthesize);
 
       if (response.agent_reply) {
@@ -175,7 +248,9 @@ export function ConfigChat() {
       );
     } finally {
       setLoading(false);
-      setUploadStatus(null);
+      if (!autoLaunchRef.current) {
+        setUploadStatus(null);
+      }
     }
   };
 
@@ -185,39 +260,23 @@ export function ConfigChat() {
     setError(null);
     try {
       const response = await configureQuickSetup(session.id, data);
-      setSession({
+      const updatedSession = {
         ...session,
         company_profile: response.company_profile,
-        config_source: 'quicksetup',
-      });
+        config_source: 'quicksetup' as const,
+      };
+      setSession(updatedSession);
       setReadyToSynthesize(true);
       setShowQuickSetup(false);
-      await handleGenerate();
+      autoLaunchRef.current = true;
+      await runLaunch(updatedSession, response.company_profile);
     } catch (err) {
+      autoLaunchRef.current = false;
       setError(err instanceof Error ? err.message : 'Quick setup failed');
     } finally {
       setLoading(false);
     }
   };
-
-  const handleGenerate = async () => {
-    if (!session) return;
-    setLoading(true);
-    setError(null);
-    try {
-      await updateSessionStatus(session.id, 'synthesizing');
-      setSession({ ...session, status: 'synthesizing' });
-      setPhase('synthesizing');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start synthesis');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const profile = session?.company_profile ?? {};
-  const canGenerate =
-    readyToSynthesize || isProfileReady(profile);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -228,18 +287,6 @@ export function ConfigChat() {
         )}
         {error && (
           <p className="px-4 text-sm text-err">{error}</p>
-        )}
-        {canGenerate && (
-          <div className="border-t border-line px-4 py-3">
-            <button
-              type="button"
-              onClick={handleGenerate}
-              disabled={isLoading}
-              className="w-full rounded-lg bg-coral py-2.5 text-sm font-medium text-white hover:bg-coral-dark disabled:opacity-50"
-            >
-              Generate Agent
-            </button>
-          </div>
         )}
         <VoiceConfigInput
           onSend={handleSend}
@@ -262,7 +309,7 @@ export function ConfigChat() {
               onClick={() => setShowQuickSetup((v) => !v)}
               className="rounded-md px-3 py-1.5 text-xs font-medium text-fg-secondary transition hover:bg-app-raised hover:text-teal"
             >
-              {showQuickSetup ? 'Hide quick setup' : 'Quick setup'}
+              {showQuickSetup ? 'Hide quick setup' : 'Quick setup (company + role)'}
             </button>
           </div>
           {showQuickSetup && (

@@ -53,7 +53,13 @@ export const CONFIG_TURN_LIMIT = 8;
 export const CONFIG_OFFER_AFTER = 5;
 
 export function getOpeningMessage(firstName: string): string {
-  return `Hey ${firstName}, I'm going to be your recruiting agent. Drop a file with your company info, or just tell me, what does your company do?`;
+  return `Hey ${firstName}, I'll be your recruiting agent. Drop a file, paste a job posting URL, or tell me what you're hiring for.`;
+}
+
+const URL_PATTERN = /^https?:\/\//i;
+
+export function isUrlOnlyMessage(text: string): boolean {
+  return URL_PATTERN.test(text.trim());
 }
 
 export function getProfileGaps(profile: CompanyProfile): string[] {

@@ -82,6 +82,21 @@ export async function synthesizeFull(
   });
 }
 
+export async function launchAgentToSimulation(sessionId: string): Promise<{
+  agent_persona: SynthesizeResponse['agent_persona'];
+  agent_strategy: SynthesizeResponse['agent_strategy'];
+  messages: Message[];
+}> {
+  const result = await synthesizeFull(sessionId);
+  await updateSessionStatus(sessionId, 'simulating');
+  const messages = await fetchMessages(sessionId);
+  return {
+    agent_persona: result.agent_persona,
+    agent_strategy: result.agent_strategy,
+    messages,
+  };
+}
+
 export async function simulateAnalyze(
   sessionId: string,
   candidateMessage: string,

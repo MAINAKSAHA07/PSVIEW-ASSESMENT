@@ -3,7 +3,6 @@ import { AuthProvider, useAuthContext } from './context/AuthContext';
 import { ProfileProvider, useProfileContext } from './context/ProfileContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { SessionProvider } from './context/SessionContext';
-import { RoleSelector } from './components/roles/RoleSelector';
 import { Landing } from './pages/Landing';
 import { EmployerMain } from './pages/EmployerMain';
 import { CandidateMain } from './pages/CandidateMain';
@@ -11,7 +10,7 @@ import { AdminMain } from './pages/AdminMain';
 
 function AppShell() {
   const { user, loading: authLoading } = useAuthContext();
-  const { profile, profileLoading, needsRoleSelection } = useProfileContext();
+  const { profile, profileLoading } = useProfileContext();
 
   if (authLoading || (user && profileLoading)) {
     return (
@@ -30,22 +29,7 @@ function AppShell() {
     );
   }
 
-  if (needsRoleSelection) {
-    return (
-      <Routes>
-        <Route path="*" element={<RoleSelector />} />
-      </Routes>
-    );
-  }
-
-  const role = profile?.role;
-  if (!role) {
-    return (
-      <Routes>
-        <Route path="*" element={<RoleSelector />} />
-      </Routes>
-    );
-  }
+  const role = profile?.role ?? 'employer';
 
   return (
     <SessionProvider>

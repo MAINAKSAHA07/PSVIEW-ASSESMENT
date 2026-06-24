@@ -4,6 +4,7 @@ import { APP_NAME } from '../../lib/constants';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../context/ThemeContext';
 import { useSessionContext } from '../../context/SessionContext';
+import { useProfileContext } from '../../context/ProfileContext';
 import { IntegrationsPanel } from '../integrations/IntegrationsPanel';
 import { AppLogo, IconMoon, IconSun } from '../ui/Icons';
 
@@ -11,8 +12,10 @@ export function TopBar() {
   const { user, signOut } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const { session } = useSessionContext();
+  const { selectRole } = useProfileContext();
   const location = useLocation();
   const [showIntegrations, setShowIntegrations] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
 
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
   const companyName = session?.company_profile?.company_name;
@@ -79,13 +82,40 @@ export function TopBar() {
               ?
             </div>
           )}
-          <button
-            type="button"
-            onClick={() => signOut()}
-            className="text-[11px] text-fg-tertiary hover:text-fg-secondary sm:text-xs"
-          >
-            Sign out
-          </button>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowMenu((v) => !v)}
+              className="text-[11px] text-fg-tertiary hover:text-fg-secondary sm:text-xs"
+              aria-expanded={showMenu}
+            >
+              Account
+            </button>
+            {showMenu && (
+              <div className="absolute right-0 top-full z-50 mt-1 min-w-[10rem] rounded-lg border border-line bg-app-card py-1 shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMenu(false);
+                    void selectRole('candidate');
+                  }}
+                  className="block w-full px-3 py-2 text-left text-xs text-fg-secondary hover:bg-app-raised hover:text-teal"
+                >
+                  Switch to candidate view
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMenu(false);
+                    void signOut();
+                  }}
+                  className="block w-full px-3 py-2 text-left text-xs text-fg-secondary hover:bg-app-raised"
+                >
+                  Sign out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
       <IntegrationsPanel

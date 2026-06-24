@@ -45,15 +45,17 @@ export function SynthesisProgress() {
         setDoneSteps([0, 1, 2]);
         setActiveStep(2);
 
+        await updateSessionStatus(sessionSnapshot.id, 'simulating');
+
         setSession({
           ...sessionSnapshot,
-          status: 'ready',
+          status: 'simulating',
           agent_persona: result.agent_persona,
           agent_strategy: result.agent_strategy,
         });
         const allMessages = await fetchMessages(sessionSnapshot.id);
         setMessages(allMessages);
-        setPhase('ready');
+        setPhase('simulating');
       } catch (err) {
         if (!cancelled) {
           setError(

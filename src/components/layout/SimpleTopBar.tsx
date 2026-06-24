@@ -2,11 +2,13 @@ import { Link } from 'react-router-dom';
 import { APP_NAME } from '../../lib/constants';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../context/ThemeContext';
+import { useProfileContext } from '../../context/ProfileContext';
 import { AppLogo, IconMoon, IconSun } from '../ui/Icons';
 
 export function SimpleTopBar() {
   const { user, signOut } = useAuth();
   const { isDark, toggleTheme } = useTheme();
+  const { selectRole } = useProfileContext();
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
 
   return (
@@ -18,6 +20,13 @@ export function SimpleTopBar() {
         </Link>
       </div>
       <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void selectRole('employer')}
+          className="text-[11px] text-fg-tertiary hover:text-teal sm:text-xs"
+        >
+          Switch to employer view
+        </button>
         <button
           type="button"
           onClick={toggleTheme}

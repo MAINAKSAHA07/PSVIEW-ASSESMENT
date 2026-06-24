@@ -45,6 +45,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
             null,
           email: user.email ?? null,
           avatar_url: (user.user_metadata?.avatar_url as string) ?? null,
+          role: 'employer',
         });
       }
       setProfile(data);
@@ -85,7 +86,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     async (updates: Partial<Profile>) => {
       if (!user) return;
       const updated = await upsertProfile(user.id, {
-        role: profile?.role ?? updates.role ?? null,
+        role: profile?.role ?? updates.role ?? 'employer',
         full_name:
           profile?.full_name ??
           (user.user_metadata?.full_name as string) ??

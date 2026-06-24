@@ -4,6 +4,7 @@ import {
   simulateReply,
   simulateReset,
   simulateSummarize,
+  updateSessionStatus,
 } from '../../lib/api';
 import {
   copyConversationMarkdown,
@@ -61,6 +62,9 @@ export function SimulationView() {
     }
     return null;
   });
+  const [showReveal, setShowReveal] = useState(
+    () => Boolean(session?.agent_persona?.name),
+  );
 
   useEffect(() => {
     const lastAgent = [...simulationMessages]
@@ -337,6 +341,62 @@ export function SimulationView() {
       <div className="shrink-0 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-xs text-amber-800 dark:text-amber-300">
         Preview mode — no emails or LinkedIn messages are sent. Use voice or text below to reply as the candidate and test how your agent responds.
       </div>
+
+      {showReveal && session?.agent_persona?.name && (
+        <div className="shrink-0 border-b border-line bg-app-card px-4 py-4">
+          <div className="mx-auto flex max-w-3xl items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-coral text-sm font-bold text-white">
+                  {session.agent_persona.name[0]}
+                </div>
+                <div>
+                  <p className="font-serif text-lg text-fg-primary">
+                    {session.agent_persona.name}
+                  </p>
+                  <p className="text-xs text-fg-secondary">Agent for {companyName}</p>
+                </div>
+              </div>
+              <p className="mt-2 text-sm italic text-fg-secondary">
+                {session.agent_persona.summary}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {session.agent_persona.vocabulary_do?.map((w) => (
+                  <span
+                    key={w}
+                    className="rounded-md bg-teal/10 px-2 py-0.5 text-xs text-teal"
+                  >
+                    {w}
+                  </span>
+                ))}
+                {session.agent_persona.vocabulary_dont?.map((w) => (
+                  <span
+                    key={w}
+                    className="rounded-md bg-err/10 px-2 py-0.5 text-xs text-err"
+                  >
+                    {w}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowReveal(false);
+                if (session.status === 'ready') {
+                  void updateSessionStatus(session.id, 'simulating').then(() => {
+                    setSession({ ...session, status: 'simulating' });
+                    setPhase('simulating');
+                  });
+                }
+              }}
+              className="shrink-0 text-xs text-fg-tertiary hover:text-fg-primary"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex shrink-0 border-b border-line lg:hidden">
         <button

@@ -2,8 +2,6 @@ import { TwoColumnLayout } from '../components/layout/TwoColumnLayout';
 import { ConfigChat } from '../components/config/ConfigChat';
 import { ExtractionPanel } from '../components/config/ExtractionPanel';
 import { SynthesisProgress } from '../components/synthesis/SynthesisProgress';
-import { AgentRevealCard } from '../components/reveal/AgentRevealCard';
-import { StrategyPlanCard } from '../components/reveal/StrategyPlanCard';
 import { SimulationView } from '../components/simulation/SimulationView';
 import { useSessionContext } from '../context/SessionContext';
 
@@ -30,6 +28,12 @@ export function Main() {
     );
   }
 
+  const inSimulation =
+    phase === 'simulating' ||
+    phase === 'ready' ||
+    session.status === 'simulating' ||
+    session.status === 'ready';
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {phase === 'configuring' && session && (
@@ -39,17 +43,7 @@ export function Main() {
         />
       )}
       {phase === 'synthesizing' && <SynthesisProgress />}
-      {phase === 'ready' && session && (
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-6xl px-6 py-8">
-            <div className="grid gap-6 lg:grid-cols-2">
-              <AgentRevealCard />
-              <StrategyPlanCard />
-            </div>
-          </div>
-        </div>
-      )}
-      {phase === 'simulating' && session && <SimulationView />}
+      {inSimulation && session && <SimulationView />}
     </div>
   );
 }
